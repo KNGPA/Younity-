@@ -16,12 +16,12 @@ html=f"""<!DOCTYPE html>
 <html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Younity</title>
-<meta name="theme-color" content="#135C2E">
+<meta name="theme-color" content="#FFFFFF">
 <meta name="description" content="Younity — Gestion des jeunes Harvest">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png"><link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Younity">
+<meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="Younity">
 <style>{css}</style>
 <script src="vendor/supabase.js"></script><script src="vendor/lucide.min.js"></script><script src="vendor/xlsx.full.min.js" defer></script><script src="vendor/jspdf.umd.min.js" defer></script>
 </head><body class="app">
