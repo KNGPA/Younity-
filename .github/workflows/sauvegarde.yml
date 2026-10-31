@@ -17,6 +17,7 @@ jobs:
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
+          if [ -z "$DB_URL" ]; then echo "Secret SUPABASE_DB_URL pas encore configuré : sauvegarde ignorée."; exit 0; fi
           d=$(date +%Y-%m-%d)
           docker run --rm -e DB_URL postgres:17 sh -c 'pg_dump "$DB_URL" --schema=public --schema=auth --no-owner --no-privileges' > cotijes-$d.sql
           test -s cotijes-$d.sql && gzip cotijes-$d.sql && ls -lh
@@ -25,3 +26,4 @@ jobs:
           name: sauvegarde-cotijes-${{ github.run_number }}
           path: "*.sql.gz"
           retention-days: 90
+          if-no-files-found: ignore
