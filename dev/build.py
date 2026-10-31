@@ -4,6 +4,7 @@ import re,os,shutil,json
 import pathlib
 H=pathlib.Path(__file__).resolve().parent
 P=str(H/'ecrans')+'/';A=str(H)+'/';D=str(H.parent)+'/'
+VER=open(A+'VERSION').read().strip()
 os.makedirs(D,exist_ok=True)
 head=open(P+'head.html').read()
 css=head[head.index('<style>')+7:head.index('</style>')]
@@ -11,7 +12,7 @@ fonts=''.join(f"@font-face{{font-family:'Plus Jakarta Sans';font-style:normal;fo
 css=fonts+css+open(A+'src/app.css').read()
 app=open(P+'app.js').read()
 app=app[:app.index('/* ================== INIT')].replace('function vProfil(p){','function vProfil0(p){')
-js='\n'.join([open(P+'logos.js').read(),app,open(P+'events.js').read(),open(P+'taches.js').read(),open(P+'recu.js').read(),open(P+'oubli.js').read(),open(A+'src/data.js').read(),'boot();'])
+js='\n'.join([open(P+'logos.js').read(),app,open(P+'events.js').read(),open(P+'taches.js').read(),open(P+'recu.js').read(),open(P+'oubli.js').read(),open(A+'src/data.js').read(),f"window.YV='{VER}';",open(A+'src/native.js').read(),'boot();'])
 html=f"""<!DOCTYPE html>
 <html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -30,7 +31,7 @@ html=f"""<!DOCTYPE html>
 <div class="toast" id="toast"></div>
 <script>
 {js}
-if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{{}});
+if('serviceWorker' in navigator&&location.protocol==='https:'&&!NATIF)navigator.serviceWorker.register('sw.js').catch(()=>{{}});
 </script></body></html>"""
 open(D+'index.html','w').write(html)
 for f in os.listdir(A+'vendor'):

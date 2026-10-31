@@ -442,7 +442,7 @@ function vStats(p){
 function payRow(x,p,actions=true,own=false){
   const m=member(x.memberId);const c=camp(x.campagneId);
   return `<div class="list-item" data-act="receipt" data-id="${x.id}" style="cursor:pointer;${x.annule?'opacity:.55':''}">${LOGOS[x.moyen]?opLogo(x.moyen,30):`<div class="avatar sm" style="background:var(--gold);color:var(--ink)"><i data-lucide="banknote" class="i i-sm"></i></div>`}
-  <div class="grow"><div class="name ellip">${own?esc(c?c.nom:''):esc(fullName(m))}</div><div class="muted">${x.source==='appli'?'<span class="chip ok" style="font-size:10px;padding:1px 6px">Payé dans l\'appli</span> ':''}${fdate(x.date)} · ${x.moyen}${x.ref?' · '+esc(x.ref):''}${own?'':' · '+esc(c?c.nom:'')}${x.annule?` · <b style="color:var(--red)">Annulé</b> (${esc(x.motif)})`:''}</div></div>
+  <div class="grow"><div class="name ellip">${own?esc(c?c.nom:''):esc(fullName(m))}</div><div class="muted">${x.source==='appli'?'<span class="chip ok" style="font-size:10px;padding:1px 6px">Payé dans l\'appli</span> ':''}${typeof qrChips==='function'?qrChips(x,p):''}${fdate(x.date)} · ${x.moyen}${x.ref?' · '+esc(x.ref):''}${own?'':' · '+esc(c?c.nom:'')}${x.annule?` · <b style="color:var(--red)">Annulé</b> (${esc(x.motif)})`:''}</div></div>
   <div style="text-align:right"><div class="name" style="${x.annule?'text-decoration:line-through':''}">${fmtN(x.montant)}</div>
   ${actions?`<div class="row" style="gap:8px;justify-content:flex-end;margin-top:2px"><button class="link" data-act="receipt" data-id="${x.id}">Reçu</button>${!x.annule&&can(p,'paiements_valider')?`<button class="link" style="color:var(--red)" data-act="cancelPay" data-id="${x.id}">Annuler</button>`:''}</div>`:''}</div></div>`;
 }
@@ -487,7 +487,7 @@ function vPayer(p){
   const relBox=can(p,'relances')&&lateN?`<div class="card mb row between" style="background:var(--red-soft);border-color:#f3cccc"><div><div class="name" style="color:#7d2020">${lateN} membre${lateN>1?'s':''} en retard ce mois-ci</div><div class="muted">${esc(c.nom)} · Mois ${curIdx(c)}/${c.nbMois}</div></div><button class="btn danger sm" data-act="openRel" data-id="${c.id}"><i data-lucide="megaphone" class="i i-sm"></i>Relancer</button></div>`:'';
   const hist=`<div class="${p.mode==='mobile'?'mt':''}"><div class="name mb" style="font-size:15px">Historique des paiements</div>${payListBlock(p)}</div>`;
   return wTitle(p,'Valider un paiement','Enregistre ce qu\'un membre t\'a remis : la situation de tout le monde se met à jour.')+
-   relBox+(p.mode==='web'?`<div class="grid" style="grid-template-columns:1fr 1.2fr;align-items:start">${form}${hist}</div>`:form+hist);
+   (typeof qrBar==='function'?qrBar(p):'')+relBox+(p.mode==='web'?`<div class="grid" style="grid-template-columns:1fr 1.2fr;align-items:start">${form}${hist}</div>`:form+hist);
 }
 function vPaiementsList(p){
   return wTitle(p,'Paiements','Validés par la trésorière · lecture seule')+`<div class="info gold mb"><i data-lucide="shield-check" class="i i-sm"></i> Seule la trésorière valide les paiements. Tu vois tout, en temps réel.</div>`+payListBlock(p);
@@ -499,9 +499,11 @@ function relMsg(tpl,m,s){return tpl.replace(/\{prenom\}/g,prenomOf(m)).replace(/
 function lastRel(cid,mid){const r=DB.relances.filter(r=>r.campagneId===cid&&r.memberId===mid);return r.length?r[r.length-1].t:null}
 let PAYCTX=null;
 function payable(me){return DB.campaigns.filter(c=>c.statut==='En cours'&&c.lignes.some(l=>l.memberId===me.id)).map(c=>({c,s:situation(c.id,me.id)})).filter(o=>o.s.reste>0)}
-function openPay(p,cid){const me=sMember(p);const L=payable(me);MCTX={pane:p.id};
+function payOn(){return DB.settings.paiementIntegre||typeof payMethods==='function'}
+function openPay(p,cid,meth){const me=sMember(p);const L=payable(me);MCTX={pane:p.id};
   if(!L.length){openModal(`<h2>Tout est soldé 🎉</h2><div class="muted">Tu n'as aucune cotisation en cours à payer.</div><div class="foot"><button class="btn" data-act="closeModal">OK</button></div>`);return}
-  if(!cid){openModal(`<h2>Quelle cotisation veux-tu payer ?</h2><div class="muted mb">Choisis la cotisation, puis le moyen de paiement.</div>${L.map(o=>`<button class="prof" data-act="payInApp" data-c="${o.c.id}"><div class="grow"><div class="name">${esc(o.c.nom)}</div><div class="muted">Reste ${fmt(o.s.reste)}${o.s.retard?` · <b style="color:var(--red)">${fmt(o.s.retard)} pour être à jour</b>`:' · à jour'}</div></div>${statutChip(o.s.statut)}<i data-lucide="chevron-right" class="i"></i></button>`).join('')}<div class="foot"><button class="btn sec" data-act="closeModal">Fermer</button></div>`);return}
+  if(!cid){openModal(`<h2>Quelle cotisation veux-tu payer ?</h2><div class="muted mb">Choisis la cotisation, puis la façon de payer.</div>${L.map(o=>`<button class="prof" data-act="payInApp" data-c="${o.c.id}"><div class="grow"><div class="name">${esc(o.c.nom)}</div><div class="muted">Reste ${fmt(o.s.reste)}${o.s.retard?` · <b style="color:var(--red)">${fmt(o.s.retard)} pour être à jour</b>`:' · à jour'}</div></div>${statutChip(o.s.statut)}<i data-lucide="chevron-right" class="i"></i></button>`).join('')}<div class="foot"><button class="btn sec" data-act="closeModal">Fermer</button></div>`);return}
+  if(!meth&&typeof payMethods==='function'){payMethods(p,cid);return}
   const o=L.find(x=>x.c.id===cid)||L[0];const c=o.c,s=o.s;const ops=Object.keys(DB.settings.operateurs).filter(k=>DB.settings.operateurs[k]);
   if(!ops.length){toast('Aucun opérateur activé.');return}
   const def=s.retard||Math.min(s.mensualite,s.reste);PAYCTX={cid:c.id,mid:me.id};
@@ -697,8 +699,8 @@ function listCard(p,k,title,icon,ph){const L=DB.settings[k];const used=v=>DB.mem
   ${L.map(v=>`<div class="list-item" style="padding:9px 0"><div class="grow"><div class="name" style="font-size:13.5px">${esc(v)}</div><div class="muted">${used(v)} jeune${used(v)>1?'s':''}</div></div><button class="link" style="color:var(--red)" data-act="listRemove" data-k="${k}" data-v="${esc(v)}"><i data-lucide="trash-2" class="i i-sm"></i></button></div>`).join('')||'<div class="empty">Liste vide : ajoute le premier élément.</div>'}</div>`}
 function vParams(p){
   const on=DB.settings.paiementIntegre;
-  return wTitle(p,'Paramètres','Réservé au président (super admin).')+`<div class="card mb"><h3><i data-lucide="smartphone" class="i"></i>Paiement mobile dans l'application</h3>
-  <div class="row between"><div><div class="name" style="font-size:13.5px">Activer pour tous les comptes</div><div class="muted" style="max-width:520px">Un seul interrupteur : dès qu'il est activé, tous les membres voient le bouton « Payer » dans l'application, sans mise à jour à installer. Le paiement s'enregistre seul, sans saisie par la trésorière.</div></div><button class="toggle ${on?'on':''}" data-act="togglePay"></button></div>
+  return wTitle(p,'Paramètres','Réservé au président (super admin).')+`<div class="card mb"><h3><i data-lucide="smartphone" class="i"></i>Paiement Mobile Money dans l'application</h3>
+  <div class="row between"><div><div class="name" style="font-size:13.5px">Activer pour tous les comptes</div><div class="muted" style="max-width:520px">Le bouton « Payer ma cotisation » est toujours visible, avec « Payer en espèces (QR code) » et « Montrer une capture ». Activé, il propose en plus « Payer par Mobile Money » : le paiement s'enregistre seul, sans saisie par la trésorière.</div></div><button class="toggle ${on?'on':''}" data-act="togglePay"></button></div>
   <div class="name mt" style="font-size:13px">Opérateurs proposés aux membres</div>
   ${Object.keys(DB.settings.operateurs).map(o=>`<div class="row between" style="padding:7px 0;border-bottom:1px solid #f0f2f1"><span class="row" style="gap:10px">${opLogo(o,30)}${o}</span><button class="toggle ${DB.settings.operateurs[o]?'on':''}" data-act="toggleOp" data-v="${o}"></button></div>`).join('')}
   <div class="name mt" style="font-size:13px">Connexion au service de paiement (API)</div>
@@ -751,7 +753,7 @@ function vMemberHome(p){
       <div class="hero-pills"><span>${fmt(s.mensualite)} / mois</span><span>${sel.nbMois} mois</span>${s.retard?`<span style="background:rgba(255,120,120,.25)">Retard ${fmtN(s.retard)}</span>`:''}</div></div>
       ${enc.length>1?`<div class="name" style="font-size:14px;margin:2px 2px 8px">Mes autres cotisations en cours</div><div class="minis mb">${enc.filter(c=>c!==sel).slice(0,2).map(c=>{const t=situation(c.id,mid);return miniCard(c,t.verse/t.total,t.verse,t.reste,t.statut==='En retard'?`<b style="color:var(--red)">Retard ${fmtN(t.retard)}</b>`:t.statut,`data-act="selCamp" data-id="${c.id}"`)}).join('')}</div>`:''}`;
     const status=s.retard?`<div class="info red mb"><b>Tu as ${fmt(s.retard)} de retard.</b><br>Rapproche-toi de la trésorière pour régulariser.</div>`:s.statut==='Soldé'?`<div class="info mb"><b>Bravo, ta cotisation est soldée ! 🎉</b>${s.surplus?`<br>Tu as versé ${fmt(s.surplus)} de plus que prévu.`:''}</div>`:`<div class="info mb"><b>Tu es à jour 👍</b>${s.next?`<br>Prochain : Mois ${s.next.i+1}, il reste ${fmt(s.next.due-s.next.paid)}.`:''}</div>`;
-    const pay=s.reste>0&&DB.settings.paiementIntegre?`<button class="btn gold block mb" data-act="payInApp" data-c="${sel.id}"><i data-lucide="wallet" class="i"></i>Payer ma cotisation</button>`:'';
+    const pay=(s.reste>0&&payOn()?`<button class="btn gold block mb" data-act="payInApp" data-c="${sel.id}"><i data-lucide="wallet" class="i"></i>Payer ma cotisation</button>`:'')+(typeof qrMember==='function'?qrMember(p,sel.id,s):'');
     const ech=`<div class="card mb"><h3><i data-lucide="calendar-days" class="i"></i>Mon échéancier — ${esc(sel.nom)}</h3>
       <div class="months" style="grid-template-columns:repeat(${Math.min(5,sel.nbMois)},1fr)">${s.months.map(mo=>moCell(s,mo)).join('')}</div>
       <div class="legend mt" style="font-size:11px"><span><i style="background:var(--ok)"></i>Payé</span><span><i style="background:var(--amber)"></i>Partiel</span><span><i style="background:var(--red)"></i>En retard</span><span><i style="background:#d5ddd9"></i>À venir</span></div>${moisDetail(s)}</div>`;
@@ -761,7 +763,7 @@ function vMemberHome(p){
    const last=DB.payments.filter(x=>x.memberId===mid&&!x.annule).slice().sort((a,b)=>b.saisiLe.localeCompare(a.saisiLe)).slice(0,5);
    h+=`<div class="${p.mode==='web'?'grid':''}" style="${p.mode==='web'?'grid-template-columns:1fr 1fr;align-items:start':''}">
    <div class="card mb"><h3><i data-lucide="alarm-clock" class="i"></i>Mes cotisations en retard<span class="r">${lateC.length}</span></h3>
-   ${lateC.length?lateC.map(o=>`<div class="list-item" style="cursor:pointer" data-act="openMyCamp" data-id="${o.c.id}"><div class="grow"><div class="name ellip">${esc(o.c.nom)}</div><div class="muted">Mois ${o.s.cur}/${o.c.nbMois} (${moisNom(o.c,o.s.cur-1)}) · pour être à jour : <b style="color:var(--red)">${fmt(o.s.retard)}</b></div></div>${DB.settings.paiementIntegre?`<button class="btn gold sm" data-act="payInApp" data-c="${o.c.id}">Payer</button>`:'<i data-lucide="chevron-right" class="i" style="color:var(--ink-3)"></i>'}</div>`).join(''):'<div class="empty" style="padding:14px">Aucun retard, bravo 👍</div>'}</div>
+   ${lateC.length?lateC.map(o=>`<div class="list-item" style="cursor:pointer" data-act="openMyCamp" data-id="${o.c.id}"><div class="grow"><div class="name ellip">${esc(o.c.nom)}</div><div class="muted">Mois ${o.s.cur}/${o.c.nbMois} (${moisNom(o.c,o.s.cur-1)}) · pour être à jour : <b style="color:var(--red)">${fmt(o.s.retard)}</b></div></div>${payOn()?`<button class="btn gold sm" data-act="payInApp" data-c="${o.c.id}">Payer</button>`:'<i data-lucide="chevron-right" class="i" style="color:var(--ink-3)"></i>'}</div>`).join(''):'<div class="empty" style="padding:14px">Aucun retard, bravo 👍</div>'}</div>
    ${sRole(p).id==='organisateur'?'':banners(p)}<div class="card mb" style="padding:14px 16px 4px"><h3><i data-lucide="history" class="i"></i>Mes 5 derniers paiements<span class="r"><button class="link" data-act="tab" data-tab="historique">Tout voir →</button></span></h3>${last.map(x=>payRow(x,p,false,true)).join('')||'<div class="empty">Aucun versement pour l\'instant.</div>'}</div></div>`+(sRole(p).id==='organisateur'?'':eventsBlock(p,3));}
   if(closed.length)h+=`<div class="card"><h3><i data-lucide="archive" class="i"></i>Campagnes terminées</h3>${closed.map(c=>{const s=situation(c.id,mid);return `<div class="list-item"><div class="grow"><div class="name">${esc(c.nom)}</div><div class="muted">${fmtN(s.verse)} / ${fmtN(s.total)}</div></div>${statutChip(s.statut)}</div>`}).join('')}</div>`;
   return h;
@@ -786,7 +788,7 @@ function vAnniv(p){
 function vMyCamps(p){
   const mid=sMember(p).id;const L=DB.campaigns.filter(c=>c.lignes.some(l=>l.memberId===mid)).sort((a,b)=>(a.statut==='En cours'?0:1)-(b.statut==='En cours'?0:1)||campTotal(b)-campTotal(a));
   const tot=L.reduce((a,c)=>{const s=situation(c.id,mid);a.v+=s.verse;a.r+=s.reste;return a},{v:0,r:0});
-  return wTitle(p,'Mes campagnes','Toutes les cotisations qui te concernent, avec ta situation dans chacune.')+(DB.settings.paiementIntegre&&tot.r>0?`<button class="btn gold block mb" data-act="payInApp"><i data-lucide="wallet" class="i"></i>Payer une cotisation</button>`:'')+
+  return wTitle(p,'Mes campagnes','Toutes les cotisations qui te concernent, avec ta situation dans chacune.')+(payOn()&&tot.r>0?`<button class="btn gold block mb" data-act="payInApp"><i data-lucide="wallet" class="i"></i>Payer une cotisation</button>`:'')+
   `<div class="kpis"><div class="kpi"><div class="l">Total versé</div><div class="v" style="color:var(--green)">${fmt(tot.v)}</div></div><div class="kpi"><div class="l">Reste à payer</div><div class="v">${fmt(tot.r)}</div></div></div>
   ${L.map(c=>{const s=situation(c.id,mid);const pct=Math.min(100,s.verse/s.total*100);const on=c.statut==='En cours';return `<div class="card mb" style="cursor:pointer;${on?'':'opacity:.7'}" data-act="openMyCamp" data-id="${c.id}">
     <div class="row between"><div style="min-width:0"><div class="name ellip" style="font-size:15px">${esc(c.nom)}</div><div class="muted">${on?`Mois ${s.cur}/${c.nbMois} · ${fmt(s.mensualite)}/mois`:'Campagne terminée'}</div></div>${statutChip(s.statut)}</div>
@@ -800,7 +802,7 @@ function vMyCamp(p,cid){
     <div class="hero-name">${esc(c.nom)}</div><div class="big">${fmt(s.verse)}</div><div class="bar"><i style="width:${pct}%"></i></div>
     <div class="split"><div>Ma cotisation<b>${fmt(s.total)}</b></div><div style="text-align:right">Reste à payer<b>${fmt(s.reste)}</b></div></div></div>
   ${on&&s.retard?`<div class="info red mb"><b>Pour être à jour ce mois-ci : ${fmt(s.retard)}</b></div>`:''}
-  ${on&&s.reste>0&&DB.settings.paiementIntegre?`<button class="btn gold block mb" data-act="payInApp" data-c="${c.id}"><i data-lucide="wallet" class="i"></i>Payer cette cotisation</button>`:''}
+  ${on&&s.reste>0&&payOn()?`<button class="btn gold block mb" data-act="payInApp" data-c="${c.id}"><i data-lucide="wallet" class="i"></i>Payer cette cotisation</button>`:''}${on&&typeof qrMember==='function'?qrMember(p,c.id,s):''}
   <div class="card mb"><h3><i data-lucide="calendar-days" class="i"></i>Mon échéancier<span class="r">${fmt(s.mensualite)} / mois</span></h3><div class="months" style="grid-template-columns:repeat(${Math.min(5,c.nbMois)},1fr)">${s.months.map(mo=>moCell(s,mo,on)).join('')}</div>${on?moisDetail(s):''}</div>
   <div class="card" style="padding:4px 14px"><h3 style="margin:12px 0 4px">Mes versements pour cette campagne</h3>${DB.payments.filter(x=>x.campagneId===cid&&x.memberId===mid).slice().reverse().map(x=>payRow(x,p)).join('')||'<div class="empty">Aucun versement.</div>'}</div>`;
 }
@@ -902,6 +904,7 @@ document.addEventListener('click',async e=>{
   if(a==='recPdf'||a==='recShare'){receiptAction(a==='recPdf'?'dl':'share',+d.id);return}
   if(evAction(a,p,d,el))return;
   if(tAction(a,p,d)){if(el.tagName==='A')e.preventDefault();return}
+  if(typeof qAction==='function'&&qAction(a,p,d,el))return;
   switch(a){
     case'tab':p.tab=d.tab;p.sub=null;p.nSnap=null;renderPane(p);break;
     case'back':p.sub=p.sub&&p.sub.edit?{camp:p.sub.edit}:p.sub&&p.sub.editEvt?{evt:p.sub.editEvt}:p.sub&&p.sub.tedit?{tache:p.sub.tedit}:null;renderPane(p);break;
@@ -1011,7 +1014,7 @@ document.addEventListener('click',async e=>{
         <div class="receipt mt"><div class="rl"><span>Total versé</span><b>${fmt(after.verse)}</b></div><div class="rl"><span>Reste à payer</span><b>${fmt(after.reste)}</b></div><div class="rl"><span>Statut</span>${statutChip(after.statut)}</div></div>
         <div class="muted mt" style="font-size:12px;text-align:center">La trésorière et le bureau ont été prévenus. Aucune saisie n'est nécessaire.</div>
         <div class="foot"><button class="btn sec" data-act="receipt" data-id="${x.id}">Voir le reçu</button><button class="btn" data-act="closeModal">Terminé</button></div>`)},2000);break}
-    case'payInApp':openPay(p,d.c?+d.c:null);break;
+    case'payInApp':openPay(p,d.c?+d.c:null,d.m||null);break;
     case'payAmt':document.getElementById('pay-amt').value=d.v;updPrev();break;
     case'payInAppOld':openModal(`<h2>Payer avec Mobile Money</h2><div class="muted mb">Aperçu de la future mise à jour.</div><div class="pills mb">${MOYENS.filter(m=>m!=='Espèces').map((m,i)=>`<span class="pill ${i===0?'on':''}">${m}</span>`).join('')}</div><div class="field"><label>Montant</label><input class="inp big" value="${fmtN(situation(+d.c,sMember(p).id).mensualite)}" disabled></div><div class="info gold">Dans la version finale : confirmation sur ton téléphone (code Mobile Money), puis le paiement apparaît tout seul chez la trésorière et dans ta situation.</div><div class="foot"><button class="btn" data-act="closeModal">Compris</button></div>`,{pane:paneId});break;
     case'logRel':{DB.relances.push({campagneId:+d.c,memberId:+d.m,t:nowIso(),par:sessName(p)});{const s=situation(+d.c,+d.m);notify({mid:+d.m},'relances',`Rappel : ${camp(+d.c).nom}`,`Il te reste ${fmt(s.retard||s.reste)} à régulariser.`,sAcct(p).id)}log(sessName(p),'Relance envoyée',`${fullName(member(+d.m))} — ${camp(+d.c).nom} (WhatsApp)`);persist();setTimeout(()=>rerender(p),300);break}
@@ -1044,7 +1047,7 @@ document.addEventListener('change',e=>{
   if(t.dataset.fk==='rtpl'&&p)rerender(p);
   if(t.dataset.import)handleImport(t,p);
   if(t.classList.contains('nc-chk')&&p)ncRecalc(p);
-  if(t.id==='pay-camp'){const pp=pane(MCTX&&MCTX.pane);if(pp)openPay(pp,+t.value)}
+  if(t.id==='pay-camp'){const pp=pane(MCTX&&MCTX.pane);if(pp)openPay(pp,+t.value,'mm')}
   if(t.id==='r-m'){const a=acctOfMember(+t.value);if(a)document.querySelectorAll('#r-roles .pill').forEach(b=>b.classList.toggle('on',b.dataset.v===a.roleId));roleDesc()}
 });
 
