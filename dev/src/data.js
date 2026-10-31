@@ -131,7 +131,9 @@ async function startSession(p){const{data}=await sb.auth.getUser();const u=data.
   const mc=await loadAll();
   if(!mc||mc.etat!=='actif'){await sb.auth.signOut();p.session=null;p.kicked=mc&&(mc.etat==='bloque'||mc.etat==='inactif');renderPane(p);return}
   rpc('enregistrer_connexion').catch(()=>{});
-  p.session={accountId:I(u.id),mustChange:!!mc.doit_changer_mdp};p.kicked=false;p.tab=null;p.sub=null;p.f={};p.pay={};LASTSYNC=Date.now();renderPane(p)}
+  p.session={accountId:I(u.id),mustChange:!!mc.doit_changer_mdp};p.kicked=false;p.tab=null;p.sub=null;p.f={};p.pay={};LASTSYNC=Date.now();renderPane(p);
+  if(location.hash==='#notifications'&&!p.session.mustChange){history.replaceState(null,'',location.pathname);API.openNotifs(p)}
+  pushApresConnexion()}
 window.addEventListener('submit',async e=>{const f=e.target.closest('form[data-login]');if(!f)return;e.preventDefault();e.stopImmediatePropagation();doLogin(pane(f.dataset.login))},true);
 
 /* ---- listes : départements et fonctions ---- */
@@ -166,10 +168,10 @@ function pwEyes(root){(root||document).querySelectorAll('input[type=password]:no
   const w=document.createElement('div');w.className='pw-wrap';i.parentNode.insertBefore(w,i);w.appendChild(i);
   w.insertAdjacentHTML('beforeend','<button type="button" class="pw-eye" data-act="pwEye" aria-label="Afficher le mot de passe"><i data-lucide="eye" class="i i-sm"></i></button>');icons()})}
 new MutationObserver(()=>pwEyes()).observe(document.documentElement,{childList:true,subtree:true});
-API.logout=async p=>{await sb.auth.signOut();p.session=null;p.sub=null;p.notif=null;DB=emptyDB();renderPane(p);return'nosync'};
+API.logout=async p=>{await desactiverPush();await sb.auth.signOut();PUSH_ETAT='?';p.session=null;p.sub=null;p.notif=null;DB=emptyDB();renderPane(p);return'nosync'};
 API.mcSave=async p=>{const a1=gv('mc-1-'+p.id),a2=gv('mc-2-'+p.id);if(a1.length<6){toast('6 caractères minimum.');return'nosync'}if(a1!==a2){toast('Les deux mots de passe sont différents.');return'nosync'}
   const{error}=await sb.auth.updateUser({password:a1});if(error)throw error;await rpc('mot_de_passe_change');
-  if(p.session)p.session.mustChange=false;['mc-1-','mc-2-'].forEach(k=>{const e=document.getElementById(k+p.id);if(e)e.value=''});toast('Mot de passe enregistré.')};
+  if(p.session&&p.session.mustChange){p.session.mustChange=false;pushApresConnexion()}if(p.session)p.session.mustChange=false;['mc-1-','mc-2-'].forEach(k=>{const e=document.getElementById(k+p.id);if(e)e.value=''});toast('Mot de passe enregistré.')};
 API.mcSkip=async()=>'nosync';
 API.saveMail=async p=>{const v=gv('pm-mail-'+p.id).toLowerCase();if(v&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)){toast('E-mail invalide.');return'nosync'}
   await rpc('maj_mon_email',{nouvel_email:v});toast('E-mail enregistré.')};
@@ -344,3 +346,50 @@ async function boot(){DB=emptyDB();setupPanes();showSplash();
   try{const{data}=await sb.auth.getSession();if(data.session)await startSession(PANES[0])}catch(e){console.warn(e)}
   renderAll()}
 sb.auth.onAuthStateChange((ev)=>{if(ev==='SIGNED_OUT'&&PANES[0]&&PANES[0].session){PANES[0].session=null;renderAll()}});
+
+/* =====================================================================
+   NOTIFICATIONS SUR LE TÉLÉPHONE (Web Push)
+   ===================================================================== */
+const PUSH_OK=()=>'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
+const IOS=()=>/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const STANDALONE=()=>window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+function b64u(s){const p='='.repeat((4-s.length%4)%4);const b=atob((s+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(b,c=>c.charCodeAt(0))}
+async function pushReg(){return navigator.serviceWorker.ready}
+async function pushEtat(){if(!PUSH_OK())return IOS()&&!STANDALONE()?'ios-safari':'non';if(Notification.permission==='denied')return'refuse';
+  try{const r=await pushReg();const s=await r.pushManager.getSubscription();return s&&Notification.permission==='granted'?'actif':'inactif'}catch(_){return'inactif'}}
+async function activerPush(silencieux){if(!PUSH_OK())return false;
+  const perm=Notification.permission==='granted'?'granted':await Notification.requestPermission();
+  if(perm!=='granted'){if(!silencieux)toast('Notifications refusées. Tu peux les autoriser dans les réglages du téléphone.');return false}
+  const r=await pushReg();let s=await r.pushManager.getSubscription();
+  if(!s){const k=await rpc('cle_push_publique');s=await r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64u(k)})}
+  const j=s.toJSON();await rpc('enregistrer_abonnement',{p_endpoint:j.endpoint,p_p256dh:j.keys.p256dh,p_auth:j.keys.auth,p_appareil:navigator.userAgent});
+  if(!silencieux)toast('Notifications activées sur ce téléphone 🔔');return true}
+async function desactiverPush(){try{const r=await pushReg();const s=await r.pushManager.getSubscription();if(s){await rpc('supprimer_abonnement',{p_endpoint:s.endpoint}).catch(()=>{});await s.unsubscribe()}}catch(_){}}
+/* après la connexion : on rafraîchit l'abonnement, ou on propose d'activer (une fois tous les 7 jours au plus) */
+async function pushApresConnexion(){if(!PUSH_OK())return;
+  if(Notification.permission==='granted'){activerPush(true).catch(()=>{});return}
+  if(Notification.permission==='denied')return;
+  let plusTard=0;try{plusTard=+localStorage.getItem('younity-push-plustard')||0}catch(_){}
+  if(Date.now()-plusTard<7*864e5)return;
+  setTimeout(()=>{if(document.getElementById('modalBg').classList.contains('show')||!PANES[0].session||PANES[0].session.mustChange)return;
+    openModal(`<div style="text-align:center"><div class="avatar" style="margin:0 auto 12px;width:56px;height:56px;background:var(--green-soft);color:var(--green)"><i data-lucide="bell-ring" class="i" style="width:28px;height:28px"></i></div>
+    <h2>Recevoir les notifications ?</h2><div class="muted">Younity te prévient sur ce téléphone, même quand l'application est fermée : paiements, rappels de cotisation, événements, tâches, anniversaires.</div></div>
+    <div class="foot"><button class="btn sec" data-act="pushPlusTard">Plus tard</button><button class="btn" data-act="pushActiver"><i data-lucide="bell" class="i i-sm"></i>Activer</button></div>`,{pane:'m'})},1500)}
+API.pushActiver=async()=>{closeModal();await activerPush(false);return'nosync'};
+API.pushPlusTard=async()=>{try{localStorage.setItem('younity-push-plustard',String(Date.now()))}catch(_){}closeModal();return'nosync'};
+API.pushProfil=async(p)=>{await activerPush(false);rerender(p);return'nosync'};
+API.pushOff=async(p)=>{await desactiverPush();toast('Notifications désactivées sur ce téléphone.');rerender(p);return'nosync'};
+API.pushTest=async()=>{await rpc('notification_essai');toast('Notification d\'essai envoyée : elle arrive dans quelques secondes.')};
+/* bloc « Notifications sur ce téléphone » dans Mon profil */
+let PUSH_ETAT='?';
+function pushCarte(p){if(PUSH_ETAT==='?')pushEtat().then(e=>{PUSH_ETAT=e;rerender(p)});
+  const e=PUSH_ETAT;const ligne={actif:'<span class="chip ok">Activées</span>',inactif:'<span class="chip mut">Désactivées</span>',refuse:'<span class="chip late">Bloquées</span>','ios-safari':'<span class="chip gold">À installer</span>',non:'<span class="chip mut">Indisponibles</span>','?':''}[e];
+  const corps=e==='actif'?`<div class="muted mb">Tu reçois les notifications Younity sur ce téléphone, même application fermée. Choisis ci-dessous ce que tu veux recevoir.</div><div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sec sm" data-act="pushTest"><i data-lucide="send" class="i i-sm"></i>Envoyer un essai</button><button class="btn sec sm" data-act="pushOff">Désactiver</button></div>`
+   :e==='inactif'?`<div class="muted mb">Active-les pour être prévenu même quand Younity est fermée.</div><button class="btn block" data-act="pushProfil"><i data-lucide="bell-ring" class="i i-sm"></i>Activer les notifications</button>`
+   :e==='refuse'?`<div class="muted">Les notifications sont bloquées pour Younity. Pour les autoriser : réglages du téléphone → Applications → Younity (ou Chrome) → Notifications.</div>`
+   :e==='ios-safari'?`<div class="muted">Sur iPhone, ajoute d'abord Younity à l'écran d'accueil : bouton Partager de Safari → « Sur l'écran d'accueil ». Ouvre-la ensuite depuis l'icône et reviens ici (iOS 16.4 ou plus récent).</div>`
+   :e==='non'?`<div class="muted">Ce téléphone ou ce navigateur ne permet pas les notifications. Tu les retrouves dans la cloche de l'application.</div>`:'';
+  return `<div class="card mb"><h3><i data-lucide="smartphone" class="i"></i>Notifications sur ce téléphone<span class="r">${ligne}</span></h3>${corps}</div>`}
+function vProfil(p){const h=vProfil0(p);const i=h.indexOf('<div class="card mb"><h3><i data-lucide="bell" class="i"></i>Notifications</h3>');return i<0?pushCarte(p)+h:h.slice(0,i)+pushCarte(p)+h.slice(i)}
+/* toucher une notification ouvre la liste des notifications */
+if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.younity==='notifications'){const p=PANES[0];if(p&&p.session&&!p.session.mustChange){sync(true).then(()=>{API.openNotifs(p)})}}});

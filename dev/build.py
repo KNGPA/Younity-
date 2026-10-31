@@ -10,7 +10,7 @@ css=head[head.index('<style>')+7:head.index('</style>')]
 fonts=''.join(f"@font-face{{font-family:'Plus Jakarta Sans';font-style:normal;font-weight:{w};font-display:swap;src:url(vendor/fonts/plus-jakarta-sans-latin-{w}-normal.woff2) format('woff2')}}\n" for w in (400,500,600,700,800))
 css=fonts+css+open(A+'src/app.css').read()
 app=open(P+'app.js').read()
-app=app[:app.index('/* ================== INIT')]
+app=app[:app.index('/* ================== INIT')].replace('function vProfil(p){','function vProfil0(p){')
 js='\n'.join([open(P+'logos.js').read(),app,open(P+'events.js').read(),open(P+'taches.js').read(),open(P+'recu.js').read(),open(P+'oubli.js').read(),open(A+'src/data.js').read(),'boot();'])
 html=f"""<!DOCTYPE html>
 <html lang="fr"><head><meta charset="utf-8">
