@@ -1,0 +1,37 @@
+
+/* ===== Younity — application réelle : plein écran, sans cadres de démonstration ===== */
+body.app{background:var(--bg);margin:0;overscroll-behavior-y:none}
+body.app .stage{padding:0;display:block}
+body.app .pane-wrap{display:block;width:100%}
+body.app .pane-cap{display:none}
+/* Téléphone */
+body.app.full-mobile .phone{min-height:100vh;min-height:100dvh}
+body.app.full-mobile .phone .screen{min-height:100vh;min-height:100dvh}
+body.app.full-mobile .m-head{padding-top:calc(10px + env(safe-area-inset-top))}
+body.app.full-mobile .m-nav{padding-bottom:calc(10px + env(safe-area-inset-bottom))}
+body.app.full-mobile .login{min-height:100vh;min-height:100dvh;padding-top:calc(30px + env(safe-area-inset-top))}
+body.app .login .logo-full{margin-left:-4px}
+/* Tablette en portrait (700 à 999 px) : contenu plus aéré, cartes sur 2 colonnes */
+body.app.tablette .m-body{padding:22px 28px 110px}
+body.app.tablette .m-body>*{max-width:860px;margin-left:auto;margin-right:auto}
+body.app.tablette .m-body .grid{grid-template-columns:1fr 1fr!important;align-items:start}
+body.app.tablette .kpis{grid-template-columns:repeat(4,1fr)}
+body.app.tablette .bans .ban,body.app.tablette .bans .evc{flex-basis:calc(50% - 5px)}
+body.app.tablette .m-nav{justify-content:center}
+body.app.tablette .m-nav button{max-width:140px;font-size:12px}
+body.app.tablette .login{align-items:center}
+body.app.tablette .login>*{width:100%;max-width:440px}
+body.app.tablette .modal{max-width:560px}
+/* Tablette en paysage / ordinateur (1000 px et +) : menu sur le côté */
+body.app.large .web{width:100%;min-height:100vh;min-height:100dvh;border-radius:0;box-shadow:none;grid-template-columns:250px 1fr}
+body.app.large .w-main{max-height:none;height:100vh;height:100dvh;padding:28px 36px}
+body.app.large .w-main>*{max-width:1180px}
+body.app.large .side{position:sticky;top:0;height:100vh;height:100dvh;overflow-y:auto;padding-top:calc(18px + env(safe-area-inset-top))}
+body.app.large .web-login{min-height:100vh;min-height:100dvh;background:linear-gradient(160deg,#fff,var(--bg))}
+/* Divers */
+.busy{opacity:.6;pointer-events:none;position:relative}
+.btn.busy:after{content:"";width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite;margin-left:6px}
+.pw-wrap{position:relative}.pw-wrap .inp{padding-right:44px}
+.pw-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--ink-3);padding:8px;cursor:pointer}
+input,select,textarea{font-size:16px!important}  /* évite le zoom automatique sur iPhone */
+.inp.code6{font-size:22px!important}

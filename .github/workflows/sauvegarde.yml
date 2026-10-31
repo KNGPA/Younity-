@@ -1,0 +1,27 @@
+# Sauvegarde automatique GRATUITE de la base Younity (GitHub Actions).
+# - Deux fois par semaine, copie complète de la base, gardée 90 jours.
+# - Ce passage compte comme une activité : le projet Supabase gratuit
+#   n'est donc jamais mis en pause, même pendant les vacances.
+# Secret à créer dans le dépôt GitHub (privé) : SUPABASE_DB_URL
+#   (Supabase → Project Settings → Database → Connection string, mode « Session pooler »)
+name: Sauvegarde base Younity
+on:
+  schedule:
+    - cron: "17 2 * * 1,4"   # lundi et jeudi à 02:17 (heure d'Abidjan)
+  workflow_dispatch: {}       # bouton « Run workflow » pour sauvegarder à la demande
+jobs:
+  sauvegarde:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Copie de la base
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          d=$(date +%Y-%m-%d)
+          docker run --rm -e DB_URL postgres:17 sh -c 'pg_dump "$DB_URL" --schema=public --schema=auth --no-owner --no-privileges' > cotijes-$d.sql
+          test -s cotijes-$d.sql && gzip cotijes-$d.sql && ls -lh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sauvegarde-cotijes-${{ github.run_number }}
+          path: "*.sql.gz"
+          retention-days: 90

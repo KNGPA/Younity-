@@ -1,0 +1,18 @@
+# Réglages Supabase propres à Cotijes
+project_id = "cotijes"
+
+[auth]
+# Session conservée : on reste connecté jusqu'à « Se déconnecter »
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+[auth.email]
+enable_signup = false        # personne ne s'inscrit seul : c'est le président qui crée les accès
+enable_confirmations = false
+
+# Fonctions publiques (pas de connexion requise) : elles se protègent elles-mêmes
+[functions.mot-de-passe-oublie]
+verify_jwt = false
+[functions.installation]
+verify_jwt = false
+[functions.paiement-webhook]
+verify_jwt = false
