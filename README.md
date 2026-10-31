@@ -3,7 +3,7 @@
 Application de la jeunesse Harvest : cotisations, paiements et reçus, événements, tâches du secrétariat,
 anniversaires, notifications. Une seule application pour téléphone, tablette et ordinateur.
 
-- **Application** : https://kngpa.github.io/younity-/ (publiée par GitHub Pages depuis la racine de ce dépôt)
+- **Application** : https://kngpa.github.io/Younity-/ (publiée par GitHub Pages depuis la racine de ce dépôt)
 - **Base de données et serveur** : Supabase (projet `zrnhsdtpfyjlvrgrmssf`, région Paris)
 
 ## Contenu du dépôt
