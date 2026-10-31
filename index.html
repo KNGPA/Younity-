@@ -2214,7 +2214,13 @@ function dataUrlBlob(u){const[h,b]=u.split(',');const bin=atob(b);const a=new Ui
 async function uploadImg(dataUrl,folder){if(!dataUrl||!dataUrl.startsWith('data:'))return null;const path=`${folder}/${crypto.randomUUID()}.jpg`;
   await must(sb.storage.from('visuels').upload(path,dataUrlBlob(dataUrl),{contentType:'image/jpeg',upsert:false}));return path}
 
-API.pwEye=async()=>{const i=document.getElementById('li-pw-m');if(i)i.type=i.type==='password'?'text':'password';return'nosync'};
+API.pwEye=async(p,d,el)=>{const i=el.parentElement.querySelector('input');if(!i)return'nosync';const show=i.type==='password';i.type=show?'text':'password';
+  el.setAttribute('aria-label',show?'Cacher le mot de passe':'Afficher le mot de passe');el.innerHTML=`<i data-lucide="${show?'eye-off':'eye'}" class="i i-sm"></i>`;icons();return'nosync'};
+/* œil afficher / cacher sur tous les champs de mot de passe (connexion, première connexion, profil, mot de passe oublié) */
+function pwEyes(root){(root||document).querySelectorAll('input[type=password]:not([data-eye])').forEach(i=>{i.dataset.eye='1';if(i.parentElement.classList.contains('pw-wrap'))return;
+  const w=document.createElement('div');w.className='pw-wrap';i.parentNode.insertBefore(w,i);w.appendChild(i);
+  w.insertAdjacentHTML('beforeend','<button type="button" class="pw-eye" data-act="pwEye" aria-label="Afficher le mot de passe"><i data-lucide="eye" class="i i-sm"></i></button>');icons()})}
+new MutationObserver(()=>pwEyes()).observe(document.documentElement,{childList:true,subtree:true});
 API.logout=async p=>{await sb.auth.signOut();p.session=null;p.sub=null;p.notif=null;DB=emptyDB();renderPane(p);return'nosync'};
 API.mcSave=async p=>{const a1=gv('mc-1-'+p.id),a2=gv('mc-2-'+p.id);if(a1.length<6){toast('6 caractères minimum.');return'nosync'}if(a1!==a2){toast('Les deux mots de passe sont différents.');return'nosync'}
   const{error}=await sb.auth.updateUser({password:a1});if(error)throw error;await rpc('mot_de_passe_change');
