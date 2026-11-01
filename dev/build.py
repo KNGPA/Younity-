@@ -5,6 +5,7 @@ import pathlib
 H=pathlib.Path(__file__).resolve().parent
 P=str(H/'ecrans')+'/';A=str(H)+'/';D=str(H.parent)+'/'
 VER=open(A+'VERSION').read().strip()
+_a=open(P+'app.js').read();_i=_a.index("const SPLASH='")+len("const SPLASH='");SPL=_a[_i:_a.index("';\n",_i)]
 os.makedirs(D,exist_ok=True)
 head=open(P+'head.html').read()
 css=head[head.index('<style>')+7:head.index('</style>')]
@@ -12,7 +13,7 @@ fonts=''.join(f"@font-face{{font-family:'Plus Jakarta Sans';font-style:normal;fo
 css=fonts+css+open(A+'src/app.css').read()
 app=open(P+'app.js').read()
 app=app[:app.index('/* ================== INIT')].replace('function vProfil(p){','function vProfil0(p){')
-js='\n'.join([open(P+'logos.js').read(),app,open(P+'events.js').read(),open(P+'taches.js').read(),open(P+'recu.js').read(),open(P+'oubli.js').read(),open(A+'src/data.js').read(),f"window.YV='{VER}';",open(A+'src/native.js').read(),'boot();'])
+js='\n'.join([open(P+'logos.js').read(),app,open(P+'events.js').read(),open(P+'taches.js').read(),open(P+'recu.js').read(),open(P+'oubli.js').read(),open(A+'src/data.js').read(),f"window.YV='{VER}';showSplash=function(){{}};(function(){{const w=document.getElementById('spWrap');if(!w)return;setTimeout(()=>w.firstElementChild&&w.firstElementChild.classList.add('out'),3000);setTimeout(()=>w.remove(),3600)}})();",open(A+'src/native.js').read(),'boot();'])
 html=f"""<!DOCTYPE html>
 <html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -26,6 +27,7 @@ html=f"""<!DOCTYPE html>
 <style>{css}</style>
 <script src="vendor/supabase.js"></script><script src="vendor/lucide.min.js"></script><script src="vendor/xlsx.full.min.js" defer></script><script src="vendor/jspdf.umd.min.js" defer></script>
 </head><body class="app">
+<div id="spWrap" style="position:fixed;inset:0;z-index:9999">{SPL}</div>
 <div class="stage" id="stage"></div>
 <div class="modal-bg" id="modalBg"><div class="modal" id="modal"></div></div>
 <div class="toast" id="toast"></div>
