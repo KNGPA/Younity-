@@ -745,12 +745,12 @@ function vPlus(p){
 function vNotifs(p){
   const a=sAcct(p);const{B,L}=notifsFor(a);const unread=p.nSnap||new Set(L.filter(n=>!n.read.includes(a.id)).map(n=>n.id));
   setTimeout(()=>{let ch=false;L.forEach(n=>{if(!n.read.includes(a.id)){n.read.push(a.id);ch=true}});if(!(a.seenB||'').includes(today())){a.seenB=today();ch=true}if(ch){persist()}},0);
-  const ic={messages:'send',paiements:'hand-coins',campagnes:'layers',relances:'megaphone',anniversaires:'cake',evenements:'calendar-days',taches:'list-todo'};
+  const ic={messages:'send',paiements:'hand-coins',campagnes:'layers',relances:'megaphone',anniversaires:'cake',evenements:'calendar-days',taches:'list-todo',maj:'refresh-cw'};
   const back=p.mode==='web'?`<button class="link mb" data-act="back"><i data-lucide="arrow-left" class="i i-sm"></i>Retour</button>`:'';
   return back+wTitle(p,'Notifications','')+
   `<div class="row between mb"><div class="muted">${unread.size} nouvelle${unread.size>1?'s':''}</div><button class="link" data-act="tab" data-tab="profil"><i data-lucide="settings-2" class="i i-sm"></i>Réglages des notifications</button></div>
   ${B.length?`<div class="card mb" style="background:var(--gold-soft);border-color:#f0dfb8"><h3><i data-lucide="cake" class="i"></i>Anniversaires</h3>${B.map(b=>`<div class="list-item"><div class="avatar sm gold">🎂</div><div class="grow"><div class="name" style="font-size:13px">${esc(b.title)}</div><div class="muted">${esc(b.body)}</div></div>${b.m?chans(b.m,`Joyeux anniversaire ${prenomOf(b.m)} ! 🎉 Toute la jeunesse te souhaite une belle journée.`,{labels:false}):''}</div>`).join('')}</div>`:''}
-  <div class="card" style="padding:4px 16px">${L.slice(0,60).map(n=>`<div class="list-item" style="${unread.has(n.id)?'background:linear-gradient(90deg,var(--green-soft),transparent);margin:0 -16px;padding-left:16px;padding-right:16px':''}"><div class="avatar sm" style="background:${n.type==='relances'?'var(--red)':n.type==='campagnes'?'var(--gold)':n.type==='messages'?'#2f6fd6':n.type==='evenements'?'#7a4fc9':n.type==='taches'?'#c2410c':'var(--green)'};color:#fff"><i data-lucide="${ic[n.type]}" class="i i-sm"></i></div><div class="grow"><div class="name" style="font-size:13px">${esc(n.title)}${unread.has(n.id)?' <span class="chip ok" style="font-size:10px;padding:1px 6px">nouveau</span>':''}</div><div class="muted">${esc(n.body)}</div><div class="muted" style="font-size:11px">${fdt(n.t)}</div></div></div>`).join('')||'<div class="empty">Aucune notification.</div>'}</div>`;
+  <div class="card" style="padding:4px 16px">${L.slice(0,60).map(n=>`<div class="list-item" style="${unread.has(n.id)?'background:linear-gradient(90deg,var(--green-soft),transparent);margin:0 -16px;padding-left:16px;padding-right:16px':''}"><div class="avatar sm" style="background:${n.type==='relances'?'var(--red)':n.type==='campagnes'?'var(--gold)':n.type==='messages'?'#2f6fd6':n.type==='evenements'?'#7a4fc9':n.type==='taches'?'#c2410c':'var(--green)'};color:#fff"><i data-lucide="${ic[n.type]}" class="i i-sm"></i></div><div class="grow" ${n.type==='maj'?'data-act="majNotif" style="cursor:pointer"':''}><div class="name" style="font-size:13px">${esc(n.title)}${unread.has(n.id)?' <span class="chip ok" style="font-size:10px;padding:1px 6px">nouveau</span>':''}</div><div class="muted">${esc(n.body)}</div><div class="muted" style="font-size:11px">${fdt(n.t)}</div></div></div>`).join('')||'<div class="empty">Aucune notification.</div>'}</div>`;
 }
 function vProfil(p){
   const m=sMember(p),a=sAcct(p);
@@ -981,6 +981,7 @@ document.addEventListener('click',async e=>{
     case'addMember':openModal(memberForm(null),{pane:paneId},true);break;
     case'editMember':openModal(memberForm(member(+d.id)),{pane:paneId},true);break;
     case'dep':{const v=d.v;FORMDEP=FORMDEP.includes(v)?FORMDEP.filter(x=>x!==v):[...FORMDEP,v];el.classList.toggle('on',FORMDEP.includes(v));break}
+    case'majNotif':toast('Tu as déjà la dernière version.');break;
     case'ncPer':{const pb=document.getElementById(`nc-per-${p.id}`);if(pb)pb.dataset.manuel='1';document.querySelectorAll(`#nc-per-${p.id} .pill`).forEach(b=>b.classList.toggle('on',b.dataset.v===d.v));ncRecalc(p);break}
     case'actualiser':refresh();toast('À jour ✓');break;
     case'bap':FORMBAP=d.v==='1';document.querySelectorAll('#f-bap .pill').forEach(b=>b.classList.toggle('on',b.dataset.v===d.v));break;

@@ -42,7 +42,7 @@ function pushNatif(){const PN=PL('PushNotifications');if(!PN)return;const LS='yo
     if(PANES[0]&&PANES[0].session)await rpc('enregistrer_abonnement',{p_endpoint:'fcm:'+t.value,p_p256dh:'fcm',p_auth:'fcm',p_appareil:'Application Android'}).catch(e=>console.warn('fcm',e));
     PUSH_ETAT='?'});
   PN.addListener('registrationError',e=>console.warn('fcm',e));
-  PN.addListener('pushNotificationActionPerformed',()=>{const p=PANES[0];if(p&&p.session&&!p.session.mustChange){p.sub='notifs';p.notif=null;renderPane(p);if(typeof sync==='function')sync()}});
+  PN.addListener('pushNotificationActionPerformed',a=>{if(a&&a.notification&&a.notification.data&&a.notification.data.type==='maj'){nouvelleVersion(true);return}const p=PANES[0];if(p&&p.session&&!p.session.mustChange){p.sub='notifs';p.notif=null;renderPane(p);if(typeof sync==='function')sync()}});
   PN.addListener('pushNotificationReceived',()=>{if(typeof sync==='function')sync()});
   const perm=async()=>{try{return(await PN.checkPermissions()).receive}catch(_){return'denied'}};
   pushEtat=async()=>{const r=await perm();return r==='denied'?'refuse':r==='granted'&&tok()?'actif':'inactif'};
@@ -144,7 +144,13 @@ async function nouvelleVersion(appliquer){try{const j=await lireVersion();NV_T=D
       if(!nouvelleVersion.vu){nouvelleVersion.vu=1;try{if(typeof notifLocale==='function')notifLocale(j)}catch(_){}}return true}
     NV=null;bandeauVersion(null)}catch(_){}return false}
 if(!(NATIF&&location.hostname==='localhost')){
-  setTimeout(()=>nouvelleVersion(false),5000);
+  /* À l'ouverture : si une version plus récente existe, on la charge pendant le splash (sans rien demander) */
+  Promise.race([lireVersion(),new Promise((_,ko)=>setTimeout(ko,3000))]).then(j=>{if(vNum(j.version)>vNum(window.YV)&&!new URLSearchParams(location.search).has('v'+j.version))location.replace(location.pathname+'?v='+encodeURIComponent(j.version)+'&v'+encodeURIComponent(j.version)+'=1'+location.hash)}).catch(()=>{});
+  setTimeout(()=>nouvelleVersion(false),8000);
   setInterval(()=>{if(document.visibilityState==='visible')nouvelleVersion(false)},5*60000);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&Date.now()-NV_T>60000)nouvelleVersion(false)});
 }
+
+/* Notification « Mise à jour disponible » : la toucher installe la nouvelle version */
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-act="majNotif"]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();
+  nouvelleVersion(true).then(ok=>{if(!ok)toast('Tu as déjà la dernière version ('+window.YV+').')})},true);

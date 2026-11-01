@@ -1174,12 +1174,12 @@ function vPlus(p){
 function vNotifs(p){
   const a=sAcct(p);const{B,L}=notifsFor(a);const unread=p.nSnap||new Set(L.filter(n=>!n.read.includes(a.id)).map(n=>n.id));
   setTimeout(()=>{let ch=false;L.forEach(n=>{if(!n.read.includes(a.id)){n.read.push(a.id);ch=true}});if(!(a.seenB||'').includes(today())){a.seenB=today();ch=true}if(ch){persist()}},0);
-  const ic={messages:'send',paiements:'hand-coins',campagnes:'layers',relances:'megaphone',anniversaires:'cake',evenements:'calendar-days',taches:'list-todo'};
+  const ic={messages:'send',paiements:'hand-coins',campagnes:'layers',relances:'megaphone',anniversaires:'cake',evenements:'calendar-days',taches:'list-todo',maj:'refresh-cw'};
   const back=p.mode==='web'?`<button class="link mb" data-act="back"><i data-lucide="arrow-left" class="i i-sm"></i>Retour</button>`:'';
   return back+wTitle(p,'Notifications','')+
   `<div class="row between mb"><div class="muted">${unread.size} nouvelle${unread.size>1?'s':''}</div><button class="link" data-act="tab" data-tab="profil"><i data-lucide="settings-2" class="i i-sm"></i>Réglages des notifications</button></div>
   ${B.length?`<div class="card mb" style="background:var(--gold-soft);border-color:#f0dfb8"><h3><i data-lucide="cake" class="i"></i>Anniversaires</h3>${B.map(b=>`<div class="list-item"><div class="avatar sm gold">🎂</div><div class="grow"><div class="name" style="font-size:13px">${esc(b.title)}</div><div class="muted">${esc(b.body)}</div></div>${b.m?chans(b.m,`Joyeux anniversaire ${prenomOf(b.m)} ! 🎉 Toute la jeunesse te souhaite une belle journée.`,{labels:false}):''}</div>`).join('')}</div>`:''}
-  <div class="card" style="padding:4px 16px">${L.slice(0,60).map(n=>`<div class="list-item" style="${unread.has(n.id)?'background:linear-gradient(90deg,var(--green-soft),transparent);margin:0 -16px;padding-left:16px;padding-right:16px':''}"><div class="avatar sm" style="background:${n.type==='relances'?'var(--red)':n.type==='campagnes'?'var(--gold)':n.type==='messages'?'#2f6fd6':n.type==='evenements'?'#7a4fc9':n.type==='taches'?'#c2410c':'var(--green)'};color:#fff"><i data-lucide="${ic[n.type]}" class="i i-sm"></i></div><div class="grow"><div class="name" style="font-size:13px">${esc(n.title)}${unread.has(n.id)?' <span class="chip ok" style="font-size:10px;padding:1px 6px">nouveau</span>':''}</div><div class="muted">${esc(n.body)}</div><div class="muted" style="font-size:11px">${fdt(n.t)}</div></div></div>`).join('')||'<div class="empty">Aucune notification.</div>'}</div>`;
+  <div class="card" style="padding:4px 16px">${L.slice(0,60).map(n=>`<div class="list-item" style="${unread.has(n.id)?'background:linear-gradient(90deg,var(--green-soft),transparent);margin:0 -16px;padding-left:16px;padding-right:16px':''}"><div class="avatar sm" style="background:${n.type==='relances'?'var(--red)':n.type==='campagnes'?'var(--gold)':n.type==='messages'?'#2f6fd6':n.type==='evenements'?'#7a4fc9':n.type==='taches'?'#c2410c':'var(--green)'};color:#fff"><i data-lucide="${ic[n.type]}" class="i i-sm"></i></div><div class="grow" ${n.type==='maj'?'data-act="majNotif" style="cursor:pointer"':''}><div class="name" style="font-size:13px">${esc(n.title)}${unread.has(n.id)?' <span class="chip ok" style="font-size:10px;padding:1px 6px">nouveau</span>':''}</div><div class="muted">${esc(n.body)}</div><div class="muted" style="font-size:11px">${fdt(n.t)}</div></div></div>`).join('')||'<div class="empty">Aucune notification.</div>'}</div>`;
 }
 function vProfil0(p){
   const m=sMember(p),a=sAcct(p);
@@ -1410,6 +1410,7 @@ document.addEventListener('click',async e=>{
     case'addMember':openModal(memberForm(null),{pane:paneId},true);break;
     case'editMember':openModal(memberForm(member(+d.id)),{pane:paneId},true);break;
     case'dep':{const v=d.v;FORMDEP=FORMDEP.includes(v)?FORMDEP.filter(x=>x!==v):[...FORMDEP,v];el.classList.toggle('on',FORMDEP.includes(v));break}
+    case'majNotif':toast('Tu as déjà la dernière version.');break;
     case'ncPer':{const pb=document.getElementById(`nc-per-${p.id}`);if(pb)pb.dataset.manuel='1';document.querySelectorAll(`#nc-per-${p.id} .pill`).forEach(b=>b.classList.toggle('on',b.dataset.v===d.v));ncRecalc(p);break}
     case'actualiser':refresh();toast('À jour ✓');break;
     case'bap':FORMBAP=d.v==='1';document.querySelectorAll('#f-bap .pill').forEach(b=>b.classList.toggle('on',b.dataset.v===d.v));break;
@@ -2809,7 +2810,7 @@ API.capValidate=async(p,d)=>{const v=crVals();if(!v.montant){toast('Indique le m
 API.capRejectOk=async(p,d)=>{const motif=gv('rj-motif');if(!motif){toast('Indique le motif.');return'nosync'}const x=dem(+d.id);
   await rpc('rejeter_demande',{p_id:x.uuid,p_motif:motif});await sync(true);capList(p);toast('Capture refusée, le jeune est prévenu.');return'nosync'};
 
-window.YV='2.7.2';showSplash=function(){};const SP_T0=Date.now();function hideSplash(){const w=document.getElementById('spWrap');if(!w||w.dataset.out)return;w.dataset.out=1;const d=Math.max(0,3000-(Date.now()-SP_T0));setTimeout(()=>{w.firstElementChild&&w.firstElementChild.classList.add('out');setTimeout(()=>w.remove(),600)},d)}setTimeout(hideSplash,20000);
+window.YV='2.8.0';showSplash=function(){};const SP_T0=Date.now();function hideSplash(){const w=document.getElementById('spWrap');if(!w||w.dataset.out)return;w.dataset.out=1;const d=Math.max(0,3000-(Date.now()-SP_T0));setTimeout(()=>{w.firstElementChild&&w.firstElementChild.classList.add('out');setTimeout(()=>w.remove(),600)},d)}setTimeout(hideSplash,20000);
 /* ================== APPLICATION NATIVE (Android, Capacitor) ================== */
 const NATIF=!!(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform());
 function PL(n){try{return(Capacitor.Plugins&&Capacitor.Plugins[n])||Capacitor.registerPlugin(n)}catch(e){return null}}
@@ -2854,7 +2855,7 @@ function pushNatif(){const PN=PL('PushNotifications');if(!PN)return;const LS='yo
     if(PANES[0]&&PANES[0].session)await rpc('enregistrer_abonnement',{p_endpoint:'fcm:'+t.value,p_p256dh:'fcm',p_auth:'fcm',p_appareil:'Application Android'}).catch(e=>console.warn('fcm',e));
     PUSH_ETAT='?'});
   PN.addListener('registrationError',e=>console.warn('fcm',e));
-  PN.addListener('pushNotificationActionPerformed',()=>{const p=PANES[0];if(p&&p.session&&!p.session.mustChange){p.sub='notifs';p.notif=null;renderPane(p);if(typeof sync==='function')sync()}});
+  PN.addListener('pushNotificationActionPerformed',a=>{if(a&&a.notification&&a.notification.data&&a.notification.data.type==='maj'){nouvelleVersion(true);return}const p=PANES[0];if(p&&p.session&&!p.session.mustChange){p.sub='notifs';p.notif=null;renderPane(p);if(typeof sync==='function')sync()}});
   PN.addListener('pushNotificationReceived',()=>{if(typeof sync==='function')sync()});
   const perm=async()=>{try{return(await PN.checkPermissions()).receive}catch(_){return'denied'}};
   pushEtat=async()=>{const r=await perm();return r==='denied'?'refuse':r==='granted'&&tok()?'actif':'inactif'};
@@ -2956,10 +2957,16 @@ async function nouvelleVersion(appliquer){try{const j=await lireVersion();NV_T=D
       if(!nouvelleVersion.vu){nouvelleVersion.vu=1;try{if(typeof notifLocale==='function')notifLocale(j)}catch(_){}}return true}
     NV=null;bandeauVersion(null)}catch(_){}return false}
 if(!(NATIF&&location.hostname==='localhost')){
-  setTimeout(()=>nouvelleVersion(false),5000);
+  /* À l'ouverture : si une version plus récente existe, on la charge pendant le splash (sans rien demander) */
+  Promise.race([lireVersion(),new Promise((_,ko)=>setTimeout(ko,3000))]).then(j=>{if(vNum(j.version)>vNum(window.YV)&&!new URLSearchParams(location.search).has('v'+j.version))location.replace(location.pathname+'?v='+encodeURIComponent(j.version)+'&v'+encodeURIComponent(j.version)+'=1'+location.hash)}).catch(()=>{});
+  setTimeout(()=>nouvelleVersion(false),8000);
   setInterval(()=>{if(document.visibilityState==='visible')nouvelleVersion(false)},5*60000);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&Date.now()-NV_T>60000)nouvelleVersion(false)});
 }
+
+/* Notification « Mise à jour disponible » : la toucher installe la nouvelle version */
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-act="majNotif"]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();
+  nouvelleVersion(true).then(ok=>{if(!ok)toast('Tu as déjà la dernière version ('+window.YV+').')})},true);
 
 boot();
 if('serviceWorker' in navigator&&location.protocol==='https:'&&!NATIF)navigator.serviceWorker.register('sw.js').catch(()=>{});

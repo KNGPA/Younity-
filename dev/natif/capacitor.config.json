@@ -11,7 +11,8 @@
     "errorPath": "hors-ligne.html"
   },
   "android": {
-    "backgroundColor": "#135C2E"
+    "backgroundColor": "#135C2E",
+    "adjustMarginsForEdgeToEdge": "auto"
   },
   "plugins": {
     "SplashScreen": {
