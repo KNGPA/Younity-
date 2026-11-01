@@ -2494,7 +2494,39 @@ function vProfil(p){const h=vProfil0(p);const i=h.indexOf('<div class="card mb">
 /* toucher une notification ouvre la liste des notifications */
 if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.younity==='notifications'){const p=PANES[0];if(p&&p.session&&!p.session.mustChange){sync(true).then(()=>{API.openNotifs(p)})}}});
 
-window.YV='2.4.2';showSplash=function(){};const SP_T0=Date.now();function hideSplash(){const w=document.getElementById('spWrap');if(!w||w.dataset.out)return;w.dataset.out=1;const d=Math.max(0,3000-(Date.now()-SP_T0));setTimeout(()=>{w.firstElementChild&&w.firstElementChild.classList.add('out');setTimeout(()=>w.remove(),600)},d)}setTimeout(hideSplash,20000);
+/* =====================================================================
+   « PAYER MA COTISATION » (en attendant le QR code et la lecture des captures)
+   Espèces : on remet l'argent à la trésorière, elle valide dans l'appli.
+   Dépôt Wave / Orange Money / banque : on envoie la capture à la trésorière sur WhatsApp.
+   ===================================================================== */
+let CONTACTS=null;
+async function contactsPaiement(){if(!CONTACTS)CONTACTS=await rpc('contacts_paiement').catch(()=>[]);return CONTACTS||[]}
+function n225(t){let n=digits(t||'');if(n.startsWith('225')&&n.length>10)n=n.slice(3);return n}
+function payMethods(p,cid){const me=sMember(p);const c=camp(cid);const s=situation(cid,me.id);
+  const mm=DB.settings.paiementIntegre&&Object.values(DB.settings.operateurs).some(Boolean);
+  openModal(`<h2>Payer ma cotisation</h2><div class="muted mb">${esc(c.nom)} · reste ${fmt(s.reste)}${s.retard?` · <b style="color:var(--red)">${fmt(s.retard)} pour être à jour</b>`:''}</div>
+  ${mm?`<button class="fg-opt" data-act="payInApp" data-c="${cid}" data-m="mm"><span class="fg-ic"><i data-lucide="smartphone" class="i"></i></span><span><b>Payer par Mobile Money</b><small>Orange Money, MTN, Moov, Wave : validé tout seul</small></span><i data-lucide="chevron-right" class="i"></i></button>`:''}
+  <button class="fg-opt" data-act="payCash" data-c="${cid}"><span class="fg-ic" style="background:var(--gold-soft);color:#8a6110"><i data-lucide="banknote" class="i"></i></span><span><b>Payer en espèces</b><small>Remets l'argent à la trésorière : elle valide et tu reçois ton reçu</small></span><i data-lucide="chevron-right" class="i"></i></button>
+  <button class="fg-opt" data-act="payCapture" data-c="${cid}"><span class="fg-ic"><i data-lucide="image-up" class="i"></i></span><span><b>Montrer une capture</b><small>Tu as payé par Wave, Orange Money, banque… : envoie la capture</small></span><i data-lucide="chevron-right" class="i"></i></button>
+  <div class="foot"><button class="btn sec" data-act="closeModal">Fermer</button></div>`,{pane:p.id})}
+async function payContactsHtml(text){const L=await contactsPaiement();if(!L.length)return'<div class="info mt">Rapproche-toi de la trésorière.</div>';
+  return L.slice(0,2).map(o=>{const n=n225(o.tel);return `<div class="card mt" style="padding:12px 14px"><div class="name">${esc(titleCase(o.nom))}</div><div class="muted mb">${esc(o.role)}${o.tel?' · '+esc(o.tel):''}</div>
+    ${n?`<div class="row" style="gap:8px;flex-wrap:wrap"><a class="btn ch-wa sm" href="https://wa.me/225${n}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener"><i data-lucide="message-circle" class="i i-sm"></i>WhatsApp</a><a class="btn sec sm" href="tel:+225${n}"><i data-lucide="phone" class="i i-sm"></i>Appeler</a></div>`:''}</div>`}).join('')}
+API.payCash=async(p,d)=>{const me=sMember(p),c=camp(+d.c),s=situation(c.id,me.id);const amt=s.retard||Math.min(s.mensualite,s.reste);
+  const txt=`Bonjour, je souhaite te remettre ${fmt(amt)} en espèces pour ma cotisation « ${c.nom} ». Quand es-tu disponible ? — ${titleCase(fullName(me))}`;
+  openModal(`<h2>Payer en espèces</h2><div class="muted mb">${esc(c.nom)}</div>
+  <div class="receipt"><div class="rl"><span class="muted">Pour être à jour</span><b>${fmt(s.retard)}</b></div><div class="rl"><span class="muted">Reste total</span><b>${fmt(s.reste)}</b></div></div>
+  <div class="info gold mt" style="font-size:12.5px">Remets l'argent à la trésorière (ou au président). Dès qu'elle valide dans l'application, tu reçois une notification et ton reçu, et ta situation se met à jour.</div>
+  ${await payContactsHtml(txt)}<div class="foot"><button class="btn sec" data-act="payBack" data-c="${c.id}">Retour</button></div>`,{pane:p.id});return'nosync'};
+API.payCapture=async(p,d)=>{const me=sMember(p),c=camp(+d.c),s=situation(c.id,me.id);const L=await contactsPaiement();const t0=L[0];
+  const txt=`Bonjour, voici la capture de mon paiement pour la cotisation « ${c.nom} ». Montant : ____ FCFA. — ${titleCase(fullName(me))}`;
+  openModal(`<h2>Montrer une capture</h2><div class="muted mb">${esc(c.nom)} · reste ${fmt(s.reste)}</div>
+  <div class="card" style="padding:12px 14px"><div class="name mb" style="font-size:13.5px">Comment faire</div>
+  <div class="muted" style="line-height:1.6">1. Fais ton dépôt (Wave, Orange Money, MTN, Moov ou banque)${t0&&t0.tel?` au <b>${esc(t0.tel)}</b> (${esc(titleCase(t0.nom))})`:' à la trésorière'}.<br>2. Fais une capture d'écran du reçu.<br>3. Touche <b>WhatsApp</b> ci-dessous et joins la capture.<br>4. La trésorière vérifie et valide : tu reçois ta notification et ton reçu.</div></div>
+  ${await payContactsHtml(txt)}<div class="foot"><button class="btn sec" data-act="payBack" data-c="${c.id}">Retour</button></div>`,{pane:p.id});return'nosync'};
+API.payBack=async(p,d)=>{payMethods(p,+d.c);return'nosync'};
+
+window.YV='2.5.0';showSplash=function(){};const SP_T0=Date.now();function hideSplash(){const w=document.getElementById('spWrap');if(!w||w.dataset.out)return;w.dataset.out=1;const d=Math.max(0,3000-(Date.now()-SP_T0));setTimeout(()=>{w.firstElementChild&&w.firstElementChild.classList.add('out');setTimeout(()=>w.remove(),600)},d)}setTimeout(hideSplash,20000);
 /* ================== APPLICATION NATIVE (Android, Capacitor) ================== */
 const NATIF=!!(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform());
 function PL(n){try{return(Capacitor.Plugins&&Capacitor.Plugins[n])||Capacitor.registerPlugin(n)}catch(e){return null}}
