@@ -816,11 +816,17 @@ function adminHero(p,ec){
     <div class="hero-name">${esc(c.nom)}</div>${delaiDepasse(c)?`<div style="margin:-2px 0 6px"><span class="chip" style="background:#fde2e2;color:#a32020">Délai dépassé · fin le ${fdate(c.fin)}</span></div>`:''}
     <div class="big">${fmt(s.verse)}</div><div class="bar"><i style="width:${(s.taux*100).toFixed(1)}%"></i></div>
     <div class="split"><div>Attendu<b>${fmt(s.total)}</b></div><div style="text-align:right">Recouvré<b>${(s.taux*100).toFixed(0)} %</b></div></div>
-    <div class="hero-pills"><span>${c.lignes.length} membres</span><span>${s.nbSolde} soldés</span><span>${s.nbRetard} en retard</span><span>${nbPer(c)}</span></div></div>${myPayCard(p)}
+    <div class="hero-pills"><span>${c.lignes.length} membres</span><span>${s.nbSolde} soldés</span><span>${s.nbRetard} en retard</span><span>${nbPer(c)}</span></div></div>${myPayCard(p)}${myLateBlock(p)}
   ${ec.length>1?`<div class="row between" style="margin:2px 2px 8px"><div class="name" style="font-size:14px">Autres campagnes en cours</div><button class="link" data-act="tab" data-tab="campagnes">Toutes (${DB.campaigns.length}) →</button></div>
   <div class="minis mb">${ec.slice(1,3).map(x=>{const t=campStats(x);return miniCard(x,t.taux,t.verse,t.reste,`${perPos(x,t.cur)} · ${t.nbRetard} en retard`,`data-act="opencamp" data-id="${x.id}"`)}).join('')}</div>`
   :`<div class="row" style="justify-content:flex-end;margin:-4px 2px 12px"><button class="link" data-act="tab" data-tab="campagnes">Toutes les campagnes (${DB.campaigns.length}) →</button></div>`}`;
 }
+function myLateBlock(p){const me=sMember(p);if(!me||sRole(p).id==='membre')return'';
+  const L=DB.campaigns.filter(c=>c.statut==='En cours'&&c.lignes.some(l=>l.memberId===me.id)).map(c=>({c,s:situation(c.id,me.id)})).filter(o=>o.s.retard>0).sort((x,y)=>y.s.retard-x.s.retard);
+  if(!L.length)return'';
+  return `<div class="card mb"><h3><i data-lucide="alarm-clock" class="i"></i>Mes cotisations en retard<span class="r">${L.length}</span></h3>
+  ${L.slice(0,3).map(o=>`<div class="list-item" style="cursor:pointer" data-act="tab" data-tab="situation"><div class="grow"><div class="name ellip">${esc(o.c.nom)} ${delaiChip(o.c)}</div><div class="muted">${perPos(o.c,o.s.cur)} · pour être à jour : <b style="color:var(--red)">${fmt(o.s.retard)}</b></div></div>${payOn()?`<button class="btn gold sm" data-act="payInApp" data-c="${o.c.id}">Payer</button>`:'<i data-lucide="chevron-right" class="i" style="color:var(--ink-3)"></i>'}</div>`).join('')}
+  ${L.length>3?`<button class="link mt" data-act="tab" data-tab="situation">Voir mes ${L.length} cotisations en retard →</button>`:''}</div>`}
 function myPayCard(p){const me=sMember(p);if(!me||sRole(p).id==='membre'||!payOn())return'';if(!payable(me).length)return'';
   return `<button class="btn gold block mb" data-act="payInApp"><i data-lucide="wallet" class="i"></i>Payer ma cotisation</button>`}
 function vDashboard(p){
@@ -1839,7 +1845,7 @@ function vOrgHome(p){const me=sMember(p);const U=upcoming();
       return `<div class="evc" data-act="openEvt" data-id="${e.id}"><div class="evc-img">${vis}<span class="evc-j">${j===0?'Aujourd\'hui':j===1?'Demain':'J-'+j}</span></div>
       <div class="evc-f"><span title="Participent"><i data-lucide="users" class="i i-sm"></i><b>${c.oui}</b> participent${c.pe?` · ${c.pe} peut-être`:''}</span><span title="Tâches" class="${T.length&&td<T.length?'warn':''}"><i data-lucide="list-checks" class="i i-sm"></i><b>${T.length?td+'/'+T.length:'—'}</b></span></div></div>`}).join('')}</div>`;
   else h+=`<div class="card empty mb">Aucun événement prévu.<br><button class="btn mt" data-act="newEvt">Créer un événement</button></div>`;
-  h+=(typeof myPayCard==='function'?myPayCard(p):'');
+  h+=(typeof myPayCard==='function'?myPayCard(p)+myLateBlock(p):'');
   h+=bdBanner(p);
   const todo=DB.tasks.filter(t=>!t.faite&&evt(t.evtId)&&!evt(t.evtId).annule&&!evPast(evt(t.evtId))).sort((a,b)=>evt(a.evtId).debut.localeCompare(evt(b.evtId).debut));
   h+=`<div><div class="card mb"><h3><i data-lucide="list-todo" class="i"></i>Tâches à faire<span class="r">${todo.length}</span></h3>
@@ -2526,7 +2532,7 @@ API.payCapture=async(p,d)=>{const me=sMember(p),c=camp(+d.c),s=situation(c.id,me
   ${await payContactsHtml(txt)}<div class="foot"><button class="btn sec" data-act="payBack" data-c="${c.id}">Retour</button></div>`,{pane:p.id});return'nosync'};
 API.payBack=async(p,d)=>{payMethods(p,+d.c);return'nosync'};
 
-window.YV='2.5.0';showSplash=function(){};const SP_T0=Date.now();function hideSplash(){const w=document.getElementById('spWrap');if(!w||w.dataset.out)return;w.dataset.out=1;const d=Math.max(0,3000-(Date.now()-SP_T0));setTimeout(()=>{w.firstElementChild&&w.firstElementChild.classList.add('out');setTimeout(()=>w.remove(),600)},d)}setTimeout(hideSplash,20000);
+window.YV='2.5.1';showSplash=function(){};const SP_T0=Date.now();function hideSplash(){const w=document.getElementById('spWrap');if(!w||w.dataset.out)return;w.dataset.out=1;const d=Math.max(0,3000-(Date.now()-SP_T0));setTimeout(()=>{w.firstElementChild&&w.firstElementChild.classList.add('out');setTimeout(()=>w.remove(),600)},d)}setTimeout(hideSplash,20000);
 /* ================== APPLICATION NATIVE (Android, Capacitor) ================== */
 const NATIF=!!(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform());
 function PL(n){try{return(Capacitor.Plugins&&Capacitor.Plugins[n])||Capacitor.registerPlugin(n)}catch(e){return null}}

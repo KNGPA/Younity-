@@ -387,11 +387,17 @@ function adminHero(p,ec){
     <div class="hero-name">${esc(c.nom)}</div>${delaiDepasse(c)?`<div style="margin:-2px 0 6px"><span class="chip" style="background:#fde2e2;color:#a32020">Délai dépassé · fin le ${fdate(c.fin)}</span></div>`:''}
     <div class="big">${fmt(s.verse)}</div><div class="bar"><i style="width:${(s.taux*100).toFixed(1)}%"></i></div>
     <div class="split"><div>Attendu<b>${fmt(s.total)}</b></div><div style="text-align:right">Recouvré<b>${(s.taux*100).toFixed(0)} %</b></div></div>
-    <div class="hero-pills"><span>${c.lignes.length} membres</span><span>${s.nbSolde} soldés</span><span>${s.nbRetard} en retard</span><span>${nbPer(c)}</span></div></div>${myPayCard(p)}
+    <div class="hero-pills"><span>${c.lignes.length} membres</span><span>${s.nbSolde} soldés</span><span>${s.nbRetard} en retard</span><span>${nbPer(c)}</span></div></div>${myPayCard(p)}${myLateBlock(p)}
   ${ec.length>1?`<div class="row between" style="margin:2px 2px 8px"><div class="name" style="font-size:14px">Autres campagnes en cours</div><button class="link" data-act="tab" data-tab="campagnes">Toutes (${DB.campaigns.length}) →</button></div>
   <div class="minis mb">${ec.slice(1,3).map(x=>{const t=campStats(x);return miniCard(x,t.taux,t.verse,t.reste,`${perPos(x,t.cur)} · ${t.nbRetard} en retard`,`data-act="opencamp" data-id="${x.id}"`)}).join('')}</div>`
   :`<div class="row" style="justify-content:flex-end;margin:-4px 2px 12px"><button class="link" data-act="tab" data-tab="campagnes">Toutes les campagnes (${DB.campaigns.length}) →</button></div>`}`;
 }
+function myLateBlock(p){const me=sMember(p);if(!me||sRole(p).id==='membre')return'';
+  const L=DB.campaigns.filter(c=>c.statut==='En cours'&&c.lignes.some(l=>l.memberId===me.id)).map(c=>({c,s:situation(c.id,me.id)})).filter(o=>o.s.retard>0).sort((x,y)=>y.s.retard-x.s.retard);
+  if(!L.length)return'';
+  return `<div class="card mb"><h3><i data-lucide="alarm-clock" class="i"></i>Mes cotisations en retard<span class="r">${L.length}</span></h3>
+  ${L.slice(0,3).map(o=>`<div class="list-item" style="cursor:pointer" data-act="tab" data-tab="situation"><div class="grow"><div class="name ellip">${esc(o.c.nom)} ${delaiChip(o.c)}</div><div class="muted">${perPos(o.c,o.s.cur)} · pour être à jour : <b style="color:var(--red)">${fmt(o.s.retard)}</b></div></div>${payOn()?`<button class="btn gold sm" data-act="payInApp" data-c="${o.c.id}">Payer</button>`:'<i data-lucide="chevron-right" class="i" style="color:var(--ink-3)"></i>'}</div>`).join('')}
+  ${L.length>3?`<button class="link mt" data-act="tab" data-tab="situation">Voir mes ${L.length} cotisations en retard →</button>`:''}</div>`}
 function myPayCard(p){const me=sMember(p);if(!me||sRole(p).id==='membre'||!payOn())return'';if(!payable(me).length)return'';
   return `<button class="btn gold block mb" data-act="payInApp"><i data-lucide="wallet" class="i"></i>Payer ma cotisation</button>`}
 function vDashboard(p){
