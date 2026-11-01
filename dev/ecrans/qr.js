@@ -35,7 +35,7 @@ const QR_MIN=30;
 function DM(){if(!DB.demandes)DB.demandes=[];const n=Date.now();DB.demandes.forEach(d=>{if(d.type==='qr'&&d.statut==='en_attente'&&new Date(d.expire).getTime()<n)d.statut='expiree'});return DB.demandes}
 function dem(id){return DM().find(d=>d.id===+id)}
 function qrSvg(txt){try{const q=qrcode(0,'M');q.addData(txt);q.make();return q.createSvgTag({cellSize:4,margin:2,scalable:true})}catch(e){return'<div class="muted">QR indisponible</div>'}}
-function qrPayload(d){return `YOUNITY:PAY:${d.id}:${d.code}`}
+function qrPayload(d){return `YOUNITY:PAY:${d.uuid||d.id}:${d.code}`}
 function rndCode(){const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<6;i++)s+=A[Math.floor(Math.random()*A.length)];return s}
 function isoIn(min){const d=new Date(Date.now()+min*60000);return d.toISOString()}
 function hhmm(iso){const d=new Date(iso);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')}
@@ -86,18 +86,22 @@ function qScan(p,pick){qStop();const P=DM().filter(d=>d.type==='qr'&&d.statut===
   openModal(`<h2>Scanner le QR du jeune</h2><div class="muted mb">Vise le QR affiché sur son téléphone, puis compte l'argent reçu.</div>
   <div class="viewf" id="viewf"><span class="cr a"></span><span class="cr b"></span><span class="cr c"></span><span class="cr d"></span>${d?`<div class="sim">${qrSvg(qrPayload(d))}</div>`:''}<div class="laser"></div><div class="msg">${d?'Recherche du QR…':'Aucun QR devant la caméra'}</div></div>
   <div class="info gold mt" style="font-size:12px"><b>Prototype :</b> la caméra est simulée et « voit » le QR d'un jeune qui en a généré un. ${P.length?'':'Génère d\'abord un QR depuis un compte membre (bouton « Espèces (QR) »).'}</div>
-  ${P.length>1?`<div class="field mt"><label>Plusieurs QR en attente : qui est devant toi ?</label>${P.map(x=>`<button class="prof" data-act="qScan" data-id="${x.id}"><div class="grow"><div class="name">${esc(titleCase(fullName(member(x.memberId))))}</div><div class="muted">${fmt(x.montant)} · ${esc(camp(x.campagneId).nom)}</div></div><i data-lucide="chevron-right" class="i"></i></button>`).join('')}</div>`:''}
+  ${P.length>1?`<div class="field mt"><label>Plusieurs QR en attente : qui est devant toi ?</label>${P.map(x=>`<button class="prof" data-act="${window.REEL?'qPick':'qScan'}" data-id="${x.id}"><div class="grow"><div class="name">${esc(titleCase(fullName(member(x.memberId))))}</div><div class="muted">${fmt(x.montant)} · ${esc(camp(x.campagneId).nom)}</div></div><i data-lucide="chevron-right" class="i"></i></button>`).join('')}</div>`:''}
   <div class="field mt"><label>Ou saisir le code affiché sous le QR</label><div class="row" style="gap:8px"><input class="inp" id="q-code" placeholder="ABC-123" maxlength="7" style="text-transform:uppercase;letter-spacing:.12em;font-weight:700"><button class="btn sec" data-act="qCode">OK</button></div></div>
-  <div class="foot"><button class="btn sec" data-act="qReal"><i data-lucide="camera" class="i i-sm"></i>Vraie caméra</button><button class="btn sec" data-act="qClose">Fermer</button></div>`,{pane:p.id});
-  QS={p:p.id};if(d){QS.t=setTimeout(()=>{const v=document.getElementById('viewf');if(!v||!QS)return;v.classList.add('ok');v.querySelector('.msg').textContent='QR détecté ✓';setTimeout(()=>{if(document.getElementById('viewf'))qScanned(p,qrPayload(d))},550)},1700)}}
-async function qReal(p){if(!('BarcodeDetector'in window)||!navigator.mediaDevices){toast('Ce navigateur ne lit pas les QR : le prototype utilise la caméra simulée. Dans l\'app installée, la vraie caméra est utilisée.');return}
-  try{clearTimeout(QS&&QS.t);const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});const v=document.getElementById('viewf');if(!v){stream.getTracks().forEach(t=>t.stop());return}
-    v.querySelector('.sim')?.remove();const vid=document.createElement('video');vid.playsInline=true;vid.muted=true;vid.srcObject=stream;v.prepend(vid);await vid.play();v.querySelector('.msg').textContent='Caméra active — vise le QR';
-    const bd=new BarcodeDetector({formats:['qr_code']});QS={p:p.id,stream};QS.iv=setInterval(async()=>{if(!document.getElementById('viewf')){qStop();return}try{const r=await bd.detect(vid);if(r[0]){const raw=r[0].rawValue;qStop();qScanned(p,raw)}}catch(e){}},350)}
-  catch(e){toast('Caméra non autorisée ici. Le prototype garde la caméra simulée.')}}
-function qScanned(p,raw){qStop();const mm=/^YOUNITY:PAY:(\d+):([A-Z0-9]{6})$/.exec((raw||'').trim());
+  <div class="foot">${window.REEL?'':'<button class="btn sec" data-act="qReal"><i data-lucide="camera" class="i i-sm"></i>Vraie caméra</button>'}<button class="btn sec" data-act="qClose">Fermer</button></div>`,{pane:p.id});
+  QS={p:p.id};if(window.REEL){const v=document.getElementById('viewf');v.querySelector('.sim')?.remove();v.querySelector('.msg').textContent='Ouverture de la caméra…';const inf=v.parentNode.querySelector('.info.gold');if(inf)inf.remove();qReal(p);return}if(d){QS.t=setTimeout(()=>{const v=document.getElementById('viewf');if(!v||!QS)return;v.classList.add('ok');v.querySelector('.msg').textContent='QR détecté ✓';setTimeout(()=>{if(document.getElementById('viewf'))qScanned(p,qrPayload(d))},550)},1700)}}
+async function qReal(p){if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){toast('Caméra indisponible sur cet appareil : saisis le code affiché sous le QR.');return}
+  try{clearTimeout(QS&&QS.t);const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});const v=document.getElementById('viewf');if(!v){stream.getTracks().forEach(t=>t.stop());return}
+    v.querySelector('.sim')?.remove();const vid=document.createElement('video');vid.playsInline=true;vid.muted=true;vid.setAttribute('playsinline','');vid.srcObject=stream;v.prepend(vid);await vid.play();v.querySelector('.msg').textContent='Vise le QR du jeune';
+    const bd=('BarcodeDetector'in window)?new BarcodeDetector({formats:['qr_code']}):null;const cv=document.createElement('canvas');const g=cv.getContext('2d',{willReadFrequently:true});
+    QS={p:p.id,stream};QS.iv=setInterval(async()=>{if(!document.getElementById('viewf')){qStop();return}if(!vid.videoWidth)return;
+      try{let raw=null;if(bd){const r=await bd.detect(vid);raw=r[0]&&r[0].rawValue}
+        else if(window.jsQR){const w=Math.min(640,vid.videoWidth),h=Math.round(vid.videoHeight*w/vid.videoWidth);cv.width=w;cv.height=h;g.drawImage(vid,0,0,w,h);const c=jsQR(g.getImageData(0,0,w,h).data,w,h,{inversionAttempts:'dontInvert'});raw=c&&c.data}
+        if(raw){v.classList.add('ok');qStop();qScanned(p,raw)}}catch(e){}},300)}
+  catch(e){toast('Autorise la caméra pour scanner (Réglages > Applications > Younity > Autorisations), ou saisis le code.')}}
+function qScanned(p,raw){qStop();const mm=/^YOUNITY:PAY:([0-9a-f-]+):([A-Z0-9]{6})$/i.exec((raw||'').trim());
   const err=(t,s)=>openModal(`<div style="text-align:center"><div class="avatar" style="margin:0 auto 10px;width:52px;height:52px;background:var(--red-soft);color:var(--red)"><i data-lucide="x" class="i"></i></div><h2>${t}</h2><div class="muted">${s}</div></div><div class="foot"><button class="btn sec" data-act="closeModal">Fermer</button><button class="btn" data-act="qScan">Scanner un autre</button></div>`,{pane:p.id});
-  if(!mm)return err('QR non reconnu','Ce QR ne vient pas de Younity.');const d=dem(+mm[1]);
+  if(!mm)return err('QR non reconnu','Ce QR ne vient pas de Younity.');const d=DM().find(x=>String(x.uuid||x.id)===mm[1]);
   if(!d||d.code!==mm[2])return err('QR non reconnu','Ce QR ne correspond à aucune demande de paiement.');
   if(d.statut==='validee')return err('QR déjà utilisé',`Ce paiement a déjà été validé par ${esc(d.valideePar)}.`);
   if(d.statut!=='en_attente')return err('QR expiré','Demande au jeune de générer un nouveau QR.');
@@ -124,7 +128,7 @@ function capStep(){const p=pane(CAP.pane);const tres=CAP.mode==='tresoriere';
   openModal(`<h2>${tres?'Importer une capture':'Envoyer une capture de paiement'}</h2><div class="muted mb">${tres?'Une capture reçue sur WhatsApp ? Ajoute-la ici : l\'app lit les informations pour toi.':'Tu as payé par Wave, Orange Money, MTN, Moov ou à la banque ? Envoie la capture du reçu.'}</div>${who}
   <div class="field"><label>Opérateur</label><div class="pills">${OPS_CAP.map(o=>`<button class="pill ${CAP.op===o?'on':''}" data-act="capOp" data-v="${o}">${o}</button>`).join('')}</div></div>
   <label class="btn block" style="cursor:pointer"><i data-lucide="image-up" class="i"></i>Choisir la capture dans la galerie<input type="file" accept="image/*" id="cap-file" style="display:none"></label>
-  <button class="btn sec block mt" data-act="capSample"><i data-lucide="sparkles" class="i"></i>Utiliser une capture d'exemple</button>
+  ${window.REEL?'':`<button class="btn sec block mt" data-act="capSample"><i data-lucide="sparkles" class="i"></i>Utiliser une capture d'exemple</button>`}
   <div class="foot"><button class="btn sec" data-act="closeModal">Annuler</button></div>`,{pane:p.id})}
 function capWho(){if(CAP.mode!=='tresoriere')return true;const e=document.getElementById('ci-mem');CAP.mid=e&&+e.value||CAP.mid;if(!CAP.mid){toast('Choisis d\'abord le jeune concerné.');return false}return true}
 function sampleCapture(op,montant){const cv=document.createElement('canvas');cv.width=540;cv.height=900;const g=cv.getContext('2d');
@@ -197,6 +201,7 @@ function qAction(a,p,d,el){switch(a){
   case'qrCancel':{const x=dem(+d.id);if(x&&x.statut==='en_attente')x.statut='annulee';persist();closeModal();refresh();toast('QR annulé.');return true}
   case'demVu':{const x=dem(+d.id);if(x)x.vu=true;persist();refresh();return true}
   case'qScan':qScan(p,d.id?+d.id:null);return true;
+  case'qPick':{const x=dem(+d.id);if(x)qScanned(p,qrPayload(x));return true}
   case'qClose':qStop();closeModal();return true;
   case'qReal':qReal(p);return true;
   case'qCode':{const c=(document.getElementById('q-code').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');const x=DM().find(y=>y.type==='qr'&&y.code===c);qScanned(p,x?qrPayload(x):'YOUNITY:PAY:0:'+c.padEnd(6,'0').slice(0,6));return true}

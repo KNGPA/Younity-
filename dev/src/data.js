@@ -28,13 +28,16 @@ async function q(table,build){let r=sb.from(table).select('*');if(build)r=build(
 async function must(p){const{data,error}=await p;if(error)throw error;return data}
 
 /* ---- chargement complet (moins de 100 jeunes : on charge tout ce qu'on a le droit de voir) ---- */
+const CAPURL={};
 async function loadAll(){
   const mc=await rpc('mon_compte');ME=mc;if(!mc||mc.etat!=='actif')return mc;
-  const [deps,fons,mems,roles,comptes,camps,lignes,pays,rels,notifs,journ,params,evts,parts,etaches,affs,taches,tpers,trap,anniv,mdeps]=await Promise.all([
+  const [deps,fons,mems,roles,comptes,camps,lignes,pays,rels,notifs,journ,params,evts,parts,etaches,affs,taches,tpers,trap,anniv,mdeps,dems]=await Promise.all([
     q('departements',r=>r.order('nom')),q('fonctions',r=>r.order('nom')),q('membres'),q('roles'),q('comptes'),q('campagnes',r=>r.order('cree_le')),q('campagne_lignes'),
     q('paiements',r=>r.order('saisi_le')),q('relances',r=>r.order('le')),q('notifications',r=>r.order('cree_le',{ascending:false}).limit(300)),
     q('journal',r=>r.order('le',{ascending:false}).limit(800)),q('parametres'),q('evenements',r=>r.order('debut')),q('evenement_participants'),q('evenement_taches',r=>r.order('id')),
-    q('affiches'),q('taches',r=>r.order('cree_le')),q('tache_personnes'),q('tache_rappels',r=>r.order('le')),rpc('anniversaires').catch(()=>[]),q('membre_departements').catch(()=>[])]);
+    q('affiches'),q('taches',r=>r.order('cree_le')),q('tache_personnes'),q('tache_rappels',r=>r.order('le')),rpc('anniversaires').catch(()=>[]),q('membre_departements').catch(()=>[]),q('demandes_paiement',r=>r.order('cree_le',{ascending:false}).limit(300)).catch(()=>[])]);
+  {const paths=[...new Set((dems||[]).filter(d=>d.type==='capture'&&d.image&&!CAPURL[d.image]).slice(0,40).map(d=>d.image))];
+   if(paths.length){try{const{data}=await sb.storage.from('captures').createSignedUrls(paths,6*3600);(data||[]).forEach(x=>{if(x.signedUrl)CAPURL[x.path]=x.signedUrl})}catch(_){}}}
   const D=emptyDB();
   const depName={},fonName={};deps.forEach(d=>{depName[d.id]=d.nom;D.depIds[d.nom]=d.id});fons.forEach(f=>{fonName[f.id]=f.nom;D.fonIds[f.nom]=f.id});
   D.settings.departements=deps.map(d=>d.nom);D.settings.fonctions=fons.map(f=>f.nom);
@@ -52,8 +55,11 @@ async function loadAll(){
   D.campaigns=camps.map(c=>({id:I(c.id),uuid:c.id,nom:c.nom,nbMois:c.nb_mois,debut:c.debut.slice(0,7),debutJ:c.debut,fin:c.fin||null,periode:c.periode||'mois',statut:c.statut==='en_cours'?'En cours':'Clôturée',creePar:nameOf(c.cree_par),creeLe:c.cree_le,
     lignes:lignes.filter(l=>l.campagne_id===c.id).map(l=>({memberId:I(l.membre_id),montant:l.montant}))}));
   PAYU=new Map();
+  const DEMTYPE={};(dems||[]).forEach(d=>DEMTYPE[d.id]=d.type);
+  D.demandes=(dems||[]).map(d=>({id:I(d.id),uuid:d.id,type:d.type,source:d.source,memberId:I(d.membre_id),campagneId:I(d.campagne_id),montant:d.montant,code:d.code,statut:d.statut,cree:d.cree_le,expire:d.expire_le,
+    imgPath:d.image,img:CAPURL[d.image]||'',ocr:{montant:d.montant,ref:d.reference||'',date:d.date_paiement||'',op:d.operateur||'',lu:d.ocr_lu},valideePar:d.valide_par?nameOf(d.valide_par):'',motif:d.motif||'',vu:d.vu}));
   D.payments=pays.map(x=>{PAYU.set(x.numero,x.id);return{id:x.numero,uuid:x.id,campagneId:I(x.campagne_id),memberId:I(x.membre_id),montant:x.montant,date:x.date_paiement,moyen:x.moyen,ref:x.reference||'',note:'',
-    saisiPar:x.source==='appli'?'Paiement dans l\'application':nameOf(x.saisi_par)||'Trésorerie',saisiLe:x.saisi_le,annule:x.annule,motif:x.motif_annulation||'',source:x.source}});
+    saisiPar:x.source==='appli'?'Paiement dans l\'application':nameOf(x.saisi_par)||'Trésorerie',saisiLe:x.saisi_le,annule:x.annule,motif:x.motif_annulation||'',source:x.demande_id?(DEMTYPE[x.demande_id]||x.source):x.source}});
   D.relances=rels.map(r=>({campagneId:I(r.campagne_id),memberId:I(r.membre_id),t:r.le,par:nameOf(r.par),canal:r.canal}));
   const myAcct=I(mc&&ME?(await sb.auth.getUser()).data.user?.id:null);
   D.notifs=notifs.map(n=>({id:n.id,t:n.cree_le,target:{acct:myAcct},type:n.type,title:n.titre,body:n.corps,read:n.lu?[myAcct]:[]})).reverse();
@@ -409,13 +415,6 @@ if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('messag
 let CONTACTS=null;
 async function contactsPaiement(){if(!CONTACTS)CONTACTS=await rpc('contacts_paiement').catch(()=>[]);return CONTACTS||[]}
 function n225(t){let n=digits(t||'');if(n.startsWith('225')&&n.length>10)n=n.slice(3);return n}
-function payMethods(p,cid){const me=sMember(p);const c=camp(cid);const s=situation(cid,me.id);
-  const mm=DB.settings.paiementIntegre&&Object.values(DB.settings.operateurs).some(Boolean);
-  openModal(`<h2>Payer ma cotisation</h2><div class="muted mb">${esc(c.nom)} · reste ${fmt(s.reste)}${s.retard?` · <b style="color:var(--red)">${fmt(s.retard)} pour être à jour</b>`:''}</div>
-  ${mm?`<button class="fg-opt" data-act="payInApp" data-c="${cid}" data-m="mm"><span class="fg-ic"><i data-lucide="smartphone" class="i"></i></span><span><b>Payer par Mobile Money</b><small>Orange Money, MTN, Moov, Wave : validé tout seul</small></span><i data-lucide="chevron-right" class="i"></i></button>`:''}
-  <button class="fg-opt" data-act="payCash" data-c="${cid}"><span class="fg-ic" style="background:var(--gold-soft);color:#8a6110"><i data-lucide="banknote" class="i"></i></span><span><b>Payer en espèces</b><small>Remets l'argent à la trésorière : elle valide et tu reçois ton reçu</small></span><i data-lucide="chevron-right" class="i"></i></button>
-  <button class="fg-opt" data-act="payCapture" data-c="${cid}"><span class="fg-ic"><i data-lucide="image-up" class="i"></i></span><span><b>Montrer une capture</b><small>Tu as payé par Wave, Orange Money, banque… : envoie la capture</small></span><i data-lucide="chevron-right" class="i"></i></button>
-  <div class="foot"><button class="btn sec" data-act="closeModal">Fermer</button></div>`,{pane:p.id})}
 async function payContactsHtml(text){const L=await contactsPaiement();if(!L.length)return'<div class="info mt">Rapproche-toi de la trésorière.</div>';
   return L.slice(0,2).map(o=>{const n=n225(o.tel);return `<div class="card mt" style="padding:12px 14px"><div class="name">${esc(titleCase(o.nom))}</div><div class="muted mb">${esc(o.role)}${o.tel?' · '+esc(o.tel):''}</div>
     ${n?`<div class="row" style="gap:8px;flex-wrap:wrap"><a class="btn ch-wa sm" href="https://wa.me/225${n}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener"><i data-lucide="message-circle" class="i i-sm"></i>WhatsApp</a><a class="btn sec sm" href="tel:+225${n}"><i data-lucide="phone" class="i i-sm"></i>Appeler</a></div>`:''}</div>`}).join('')}
@@ -431,4 +430,46 @@ API.payCapture=async(p,d)=>{const me=sMember(p),c=camp(+d.c),s=situation(c.id,me
   <div class="card" style="padding:12px 14px"><div class="name mb" style="font-size:13.5px">Comment faire</div>
   <div class="muted" style="line-height:1.6">1. Fais ton dépôt (Wave, Orange Money, MTN, Moov ou banque)${t0&&t0.tel?` au <b>${esc(t0.tel)}</b> (${esc(titleCase(t0.nom))})`:' à la trésorière'}.<br>2. Fais une capture d'écran du reçu.<br>3. Touche <b>WhatsApp</b> ci-dessous et joins la capture.<br>4. La trésorière vérifie et valide : tu reçois ta notification et ton reçu.</div></div>
   ${await payContactsHtml(txt)}<div class="foot"><button class="btn sec" data-act="payBack" data-c="${c.id}">Retour</button></div>`,{pane:p.id});return'nosync'};
-API.payBack=async(p,d)=>{payMethods(p,+d.c);return'nosync'};
+
+
+/* =====================================================================
+   PAIEMENT EN ESPÈCES PAR QR CODE ET PAR CAPTURE (connecté au serveur)
+   ===================================================================== */
+window.REEL=true;
+function dataUrlBlob(u){const[h,b]=u.split(',');const bin=atob(b);const a=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);return new Blob([a],{type:(h.match(/data:([^;]+)/)||[])[1]||'image/jpeg'})}
+async function envoyerImage(mid,dataUrl){const path=`${U(mid)}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
+  const{error}=await sb.storage.from('captures').upload(path,dataUrlBlob(dataUrl),{contentType:'image/jpeg',upsert:false});if(error)throw new Error('Envoi de l\'image impossible : '+error.message);return path}
+function pvModal(p,payId,before,cid,mid,titre){const c=camp(cid),m=member(mid),after=situation(cid,mid);const x=DB.payments.find(y=>y.uuid===payId);
+  const changes=after.months.filter((mo,i)=>mo.paid!==before.months[i].paid).map(mo=>`<div class="rl"><span>${perL(c)} ${mo.i+1} · ${moisNom(c,mo.i)}</span><b style="color:${mo.state==='paye'?'var(--ok)':'var(--amber)'}">${mo.state==='paye'?'Soldé ✓':fmtN(mo.paid)+' / '+fmtN(mo.due)}</b></div>`).join('');
+  MCTX={pane:p.id};openModal(`<div style="text-align:center"><div class="avatar" style="margin:0 auto 10px;width:52px;height:52px"><i data-lucide="check" class="i" style="width:26px;height:26px"></i></div><h2>${titre}</h2><div class="muted">${esc(fullName(m))}${x?` · ${fmt(x.montant)} · ${esc(x.moyen)}`:''}</div></div>
+  <div class="receipt mt"><div class="muted" style="font-weight:700;margin-bottom:4px">RÉPARTITION AUTOMATIQUE</div>${changes||'<div class="muted">Montant enregistré.</div>'}
+  <div class="rl" style="margin-top:6px"><span>Total versé</span><b>${fmt(after.verse)}</b></div><div class="rl"><span>Reste à payer</span><b>${fmt(after.reste)}</b></div></div>
+  <div class="foot">${x?`<button class="btn sec" data-act="receipt" data-id="${x.id}"><i data-lucide="receipt" class="i"></i>Voir le reçu</button>`:''}<button class="btn" data-act="closeModal">Terminé</button></div>`)}
+API.qrGen=async(p,d)=>{const amt=+digits(gv('pay-amt'));if(!amt){toast('Indique le montant.');return'nosync'}
+  const c=camp(+d.c);const r=await rpc('creer_demande_qr',{p_campagne:c.uuid,p_montant:amt});await sync(true);qrShow(p,I(r.id));
+  const iv=setInterval(async()=>{const x=dem(I(r.id));if(!document.querySelector('[data-qrid]')||!x||x.statut!=='en_attente'){clearInterval(iv);return}await sync(true);const y=dem(I(r.id));if(y&&y.statut==='validee'){clearInterval(iv);qrShow(p,y.id)}},5000);return'nosync'};
+API.qrCancel=async(p,d)=>{const x=dem(+d.id);if(x)await rpc('annuler_demande',{p_id:x.uuid});closeModal();toast('QR annulé.')};
+API.demVu=async(p,d)=>{const x=dem(+d.id);if(x)await rpc('demande_vue',{p_id:x.uuid})};
+API.qCode=async p=>{const c=(gv('q-code')||'').toUpperCase().replace(/[^A-Z0-9]/g,'');if(c.length!==6){toast('Le code fait 6 caractères.');return'nosync'}
+  const r=await rpc('verifier_qr',{p_id:null,p_code:c});if(r.erreur){qScanned(p,'YOUNITY:PAY:0:'+c);return'nosync'}await sync(true);const x=DB.demandes.find(y=>y.uuid===r.id);qScanned(p,x?qrPayload(x):'');return'nosync'};
+const qScanned0=qScanned;qScanned=async function(p,raw){qStop();const mm=/^YOUNITY:PAY:([0-9a-f-]{36}):([A-Z0-9]{6})$/i.exec((raw||'').trim());
+  if(!mm)return qScanned0(p,raw);
+  try{const r=await rpc('verifier_qr',{p_id:mm[1],p_code:mm[2]});await sync(true);
+    if(r.erreur==='utilise'){const x=DB.demandes.find(y=>y.uuid===mm[1]);if(x)x.statut='validee'}
+    else if(r.erreur==='expire'){const x=DB.demandes.find(y=>y.uuid===mm[1]);if(x)x.statut='expiree'}
+    else if(r.erreur){return qScanned0(p,'YOUNITY:PAY:'+mm[1]+':ZZZZZZ')}}catch(e){toast(errMsg(e));return}
+  return qScanned0(p,raw)};
+API.qOk=async(p,d)=>{const x=dem(+d.id);if(!x)return'nosync';const before=situation(x.campagneId,x.memberId);
+  const r=await rpc('valider_demande',{p_id:x.uuid});await sync(true);pvModal(p,r.paiement_id,before,x.campagneId,x.memberId,'Paiement en espèces validé');return'nosync'};
+API.capSend=async p=>{const v=crVals();if(!v.montant){toast('Indique le montant payé.');return'nosync'}const c=camp(CAP.cid);
+  toast('Envoi de la capture…');const path=await envoyerImage(CAP.mid,CAP.img);
+  await rpc('envoyer_capture',{p_campagne:c.uuid,p_montant:v.montant,p_image:path,p_operateur:v.op,p_reference:v.ref||null,p_date:v.date||null,p_ocr_lu:!!(CAP.ocr&&CAP.ocr.lu),p_membre:null});
+  CAP=null;closeModal();toast('Capture envoyée. Tu seras prévenu dès qu\'elle est validée.')};
+API.capValidate=async(p,d)=>{const v=crVals();if(!v.montant){toast('Indique le montant.');return'nosync'}let x=d.id?dem(+d.id):null;
+  const mid=x?x.memberId:CAP.mid,cid=x?x.campagneId:CAP.cid;const before=situation(cid,mid);let id=x&&x.uuid;
+  if(!x){toast('Envoi de la capture…');const path=await envoyerImage(mid,CAP.img);
+    id=await rpc('envoyer_capture',{p_campagne:camp(cid).uuid,p_montant:v.montant,p_image:path,p_operateur:v.op,p_reference:v.ref||null,p_date:v.date||null,p_ocr_lu:!!(CAP.ocr&&CAP.ocr.lu),p_membre:member(mid).uuid})}
+  const r=await rpc('valider_demande',{p_id:id,p_montant:v.montant,p_moyen:v.op,p_reference:v.ref||null,p_date:v.date||null});CAP=null;await sync(true);
+  pvModal(p,r.paiement_id,before,cid,mid,'Paiement validé');return'nosync'};
+API.capRejectOk=async(p,d)=>{const motif=gv('rj-motif');if(!motif){toast('Indique le motif.');return'nosync'}const x=dem(+d.id);
+  await rpc('rejeter_demande',{p_id:x.uuid,p_motif:motif});await sync(true);capList(p);toast('Capture refusée, le jeune est prévenu.');return'nosync'};

@@ -13,7 +13,7 @@ fonts=''.join(f"@font-face{{font-family:'Plus Jakarta Sans';font-style:normal;fo
 css=fonts+css+open(A+'src/app.css').read()
 app=open(P+'app.js').read()
 app=app[:app.index('/* ================== INIT')].replace('function vProfil(p){','function vProfil0(p){')
-js='\n'.join([open(P+'logos.js').read(),app,open(P+'events.js').read(),open(P+'taches.js').read(),open(P+'recu.js').read(),open(P+'oubli.js').read(),open(A+'src/data.js').read(),f"window.YV='{VER}';showSplash=function(){{}};const SP_T0=Date.now();function hideSplash(){{const w=document.getElementById('spWrap');if(!w||w.dataset.out)return;w.dataset.out=1;const d=Math.max(0,3000-(Date.now()-SP_T0));setTimeout(()=>{{w.firstElementChild&&w.firstElementChild.classList.add('out');setTimeout(()=>w.remove(),600)}},d)}}setTimeout(hideSplash,20000);",open(A+'src/native.js').read(),'boot();'])
+js='\n'.join([open(P+'logos.js').read(),app,open(P+'events.js').read(),open(P+'taches.js').read(),open(P+'recu.js').read(),open(P+'oubli.js').read(),open(P+'qrlib.js').read(),open(P+'qr.js').read(),open(A+'src/data.js').read(),f"window.YV='{VER}';showSplash=function(){{}};const SP_T0=Date.now();function hideSplash(){{const w=document.getElementById('spWrap');if(!w||w.dataset.out)return;w.dataset.out=1;const d=Math.max(0,3000-(Date.now()-SP_T0));setTimeout(()=>{{w.firstElementChild&&w.firstElementChild.classList.add('out');setTimeout(()=>w.remove(),600)}},d)}}setTimeout(hideSplash,20000);",open(A+'src/native.js').read(),'boot();'])
 html=f"""<!DOCTYPE html>
 <html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -25,7 +25,7 @@ html=f"""<!DOCTYPE html>
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="Younity">
 <style>{css}</style>
-<script src="vendor/supabase.js"></script><script src="vendor/lucide.min.js"></script><script src="vendor/xlsx.full.min.js" defer></script><script src="vendor/jspdf.umd.min.js" defer></script>
+<script src="vendor/supabase.js"></script><script src="vendor/lucide.min.js"></script><script src="vendor/xlsx.full.min.js" defer></script><script src="vendor/jspdf.umd.min.js" defer></script><script src="vendor/jsqr.min.js" defer></script>
 </head><body class="app">
 <div id="spWrap" style="position:fixed;inset:0;z-index:9999">{SPL}</div>
 <script>try{{Capacitor.Plugins.SplashScreen.hide({{fadeOutDuration:250}})}}catch(e){{}}</script>
