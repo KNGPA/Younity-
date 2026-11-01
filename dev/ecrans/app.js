@@ -431,7 +431,7 @@ function vStats(p){
     h+=`<div class="card mt"><h3><i data-lucide="hand-coins" class="i"></i>Mes validations de paiements</h3><div class="kpis" style="margin:0"><div class="kpi"><div class="l">Ce mois-ci</div><div class="v">${thisM.length}</div><div class="s">${fmt(thisM.reduce((a,x)=>a+x.montant,0))}</div></div><div class="kpi"><div class="l">Depuis le début</div><div class="v">${mine.filter(x=>!x.annule).length}</div><div class="s">${mine.filter(x=>x.annule).length} annulé(s)</div></div></div></div>`}
   if(can(p,'relances')){const R=DB.relances.filter(x=>Date.now()-new Date(x.t)<30*864e5);const byC={};R.forEach(x=>{const n=(camp(x.campagneId)||{}).nom||'?';byC[n]=(byC[n]||0)+1});
     h+=`<div class="card mt"><h3><i data-lucide="megaphone" class="i"></i>Relances (30 derniers jours)<span class="r">${R.length}</span></h3>${R.length?barRows(Object.entries(byC),null,'var(--red)'):'<div class="empty">Aucune relance.</div>'}</div>`}
-  if(can(p,'membres_voir')){const act=DB.members.filter(m=>m.actif);const byD={},byF={};act.forEach(m=>{byD[m.departement||'Non renseigné']=(byD[m.departement||'Non renseigné']||0)+1;byF[m.fonction]=(byF[m.fonction]||0)+1});
+  if(can(p,'membres_voir')){const act=DB.members.filter(m=>m.actif);const byD={},byF={};act.forEach(m=>{const ds=depsOf(m);(ds.length?ds:['Non renseigné']).forEach(d=>byD[d]=(byD[d]||0)+1);byF[m.fonction]=(byF[m.fonction]||0)+1});
     h+=`<div class="card mt"><h3><i data-lucide="users" class="i"></i>Jeunesse</h3><div class="kpis"><div class="kpi"><div class="l">Jeunes actifs</div><div class="v">${act.length}</div></div><div class="kpi"><div class="l">Baptisés</div><div class="v">${act.filter(m=>m.baptise).length}</div><div class="s">${act.length?Math.round(act.filter(m=>m.baptise).length/act.length*100):0} %</div></div><div class="kpi"><div class="l">Avec un accès</div><div class="v">${act.filter(m=>acctOfMember(m.id)).length}</div></div></div>
     <div class="grid" style="grid-template-columns:${p.mode==='web'?'1fr 1fr':'1fr'}"><div><div class="name mb" style="font-size:13px">Par département</div>${barRows(Object.entries(byD).sort((a,b)=>b[1]-a[1]),null,'var(--gold)')}</div><div><div class="name mb" style="font-size:13px">Par fonction</div>${barRows(Object.entries(byF).sort((a,b)=>b[1]-a[1]),null,'var(--gold)')}</div></div></div>`}
   return h;
@@ -604,7 +604,7 @@ function lastAmount(mid){for(let i=DB.campaigns.length-1;i>=0;i--){const l=DB.ca
 function filteredMembers(p){
   const f=p.f;let L=DB.members.slice();
   if((f.ma||'actif')==='actif')L=L.filter(m=>m.actif);else if(f.ma==='inactif')L=L.filter(m=>!m.actif);
-  if(f.md&&f.md!=='all')L=L.filter(m=>m.departement===f.md);
+  if(f.md&&f.md!=='all')L=L.filter(m=>depsOf(m).includes(f.md));
   if(f.mb==='oui')L=L.filter(m=>m.baptise);if(f.mb==='non')L=L.filter(m=>!m.baptise);
   if(f.mr&&f.mr!=='all'){L=L.filter(m=>{const a=acctOfMember(m.id);return f.mr==='bloque'?a&&!a.actif:f.mr==='aucun'?!a:f.mr==='bureau'?a&&a.roleId!=='membre':a&&a.roleId===f.mr})}
   if(f.mq){const q=norm(f.mq);L=L.filter(m=>norm(fullName(m)+m.tel+m.email+m.profession+m.habitation+m.fonction).includes(q))}
@@ -613,7 +613,7 @@ function filteredMembers(p){
 function vMembres(p){
   const g=can(p,'membres_gerer');const f=p.f;
   const L=filteredMembers(p);const act=DB.members.filter(m=>m.actif);
-  const byD={};act.forEach(m=>{const d=m.departement||'Non renseigné';byD[d]=(byD[d]||0)+1});
+  const byD={};act.forEach(m=>{const ds=depsOf(m);(ds.length?ds:['Non renseigné']).forEach(d=>byD[d]=(byD[d]||0)+1)});
   const actions=(g?`<button class="btn ${sm(p)}" data-act="addMember"><i data-lucide="user-plus" class="i"></i>Enregistrer un jeune</button><label class="btn sec ${sm(p)}" style="cursor:pointer"><i data-lucide="upload" class="i"></i>Importer Excel<input type="file" accept=".xlsx,.xls,.csv" data-import="${p.id}" hidden></label><button class="btn sec ${sm(p)}" data-act="template"><i data-lucide="file-spreadsheet" class="i"></i>Modèle</button>`:'')+(can(p,'exports')?`<button class="btn sec ${sm(p)}" data-act="exportMembers"><i data-lucide="download" class="i"></i>Exporter (liste filtrée)</button>`:'');
   const sec=g?(f.msec||'liste'):'liste';
   const segs=g?`<div class="seg2 mb">${[['liste','Les jeunes'],['departements','Départements'],['fonctions','Fonctions']].map(([k,l])=>`<button class="${sec===k?'on':''}" data-act="setF" data-k="msec" data-v="${k}">${l}</button>`).join('')}</div>`:'';
@@ -692,7 +692,7 @@ function vJournal(p,limit){
     `<div class="filters">${pills(p,'jt',types,'all')}</div><div class="search mb"><i data-lucide="search" class="i"></i><input class="inp" placeholder="Rechercher dans le journal" data-fk="jq" data-live="1" value="${esc(f.jq||'')}"></div>`)+
   `<div class="card" style="padding:4px 16px">${j.slice(0,limit||150).map(e=>`<div class="list-item"><div class="avatar sm" style="background:${/annul|désactiv/i.test(e.action)?'var(--red)':/campagne|montant|rôle|accès/i.test(e.action)?'var(--gold)':'var(--green)'};color:#fff"><i data-lucide="${/paiement/i.test(e.action)?'hand-coins':/rôle|accès|mot de passe/i.test(e.action)?'key-round':/relance/i.test(e.action)?'megaphone':/membre|import/i.test(e.action)?'user':'flag'}" class="i i-sm"></i></div><div class="grow"><div class="name" style="font-size:13px">${esc(e.action)}</div><div class="muted">${esc(e.detail)}</div><div class="muted" style="font-size:11px">${fdt(e.t)} · ${esc(e.auteur)}</div></div></div>`).join('')||'<div class="empty">Rien à afficher.</div>'}</div>`;
 }
-function listCard(p,k,title,icon,ph){const L=DB.settings[k];const used=v=>DB.members.filter(m=>(k==='departements'?m.departement:m.fonction)===v).length;
+function listCard(p,k,title,icon,ph){const L=DB.settings[k];const used=v=>DB.members.filter(m=>k==='departements'?depsOf(m).includes(v):m.fonction===v).length;
   return `<div class="card mb"><h3><i data-lucide="${icon}" class="i"></i>${title}<span class="r">${L.length}</span></h3>
   <form class="row mb" data-listadd="${k}" style="gap:8px"><input class="inp" id="la-${k}-${p.id}" placeholder="${ph}"><button class="btn" type="submit"><i data-lucide="plus" class="i i-sm"></i>Ajouter</button></form>
   ${L.map(v=>`<div class="list-item" style="padding:9px 0"><div class="grow"><div class="name" style="font-size:13.5px">${esc(v)}</div><div class="muted">${used(v)} jeune${used(v)>1?'s':''}</div></div><button class="link" style="color:var(--red)" data-act="listRemove" data-k="${k}" data-v="${esc(v)}"><i data-lucide="trash-2" class="i i-sm"></i></button></div>`).join('')||'<div class="empty">Liste vide : ajoute le premier élément.</div>'}</div>`}
@@ -821,7 +821,7 @@ async function copy(t){try{await navigator.clipboard.writeText(t);toast('Copié 
 
 let FORMBAP=true;
 function memberForm(m){
-  FORMBAP=m?!!m.baptise:false;const deps=DB.settings.departements.slice();if(m&&m.departement&&!deps.includes(m.departement))deps.push(m.departement);const fcts=DB.settings.fonctions.slice();if(m&&m.fonction&&!fcts.includes(m.fonction))fcts.push(m.fonction);if(!fcts.length)fcts.push('Membre');
+  FORMBAP=m?!!m.baptise:false;FORMDEP=m?depsOf(m).slice():[];const deps=DB.settings.departements.slice();FORMDEP.forEach(d=>{if(!deps.includes(d))deps.push(d)});const fcts=DB.settings.fonctions.slice();if(m&&m.fonction&&!fcts.includes(m.fonction))fcts.push(m.fonction);if(!fcts.length)fcts.push('Membre');
   return `<h2>${m?'Modifier la fiche':'Enregistrer un jeune'}</h2><div class="muted mb">${m?'Toute modification est enregistrée dans le journal.':'Il pourra ensuite recevoir un accès avec son téléphone ou son e-mail.'}</div>
   <div class="fgrid">
   <div class="field"><label>Nom *</label><input class="inp" id="f-nom" value="${esc(m?.nom||'')}"></div>
@@ -832,7 +832,7 @@ function memberForm(m){
   <div class="field"><label>Baptisé(e) ?</label><div class="pills" id="f-bap"><button type="button" class="pill ${FORMBAP?'on':''}" data-act="bap" data-v="1">Oui</button><button type="button" class="pill ${!FORMBAP?'on':''}" data-act="bap" data-v="0">Non</button></div></div>
   <div class="field"><label>Profession</label><input class="inp" id="f-prof" value="${esc(m?.profession||'')}" placeholder="Ex. Étudiant, commerçante…"></div>
   <div class="field"><label>Lieu d'habitation</label><input class="inp" id="f-hab" value="${esc(m?.habitation||'')}" placeholder="Commune / quartier"></div>
-  <div class="field full"><label>Département</label><select class="inp" id="f-dep"><option value="">— Choisir le département —</option>${deps.map(d=>`<option ${m&&m.departement===d?'selected':''}>${esc(d)}</option>`).join('')}</select><div class="muted" style="font-size:11.5px">Les listes des départements et des fonctions se gèrent dans Jeunes → Départements / Fonctions.</div></div>
+  <div class="field full"><label>Départements <span class="muted" style="font-weight:500">(un ou plusieurs)</span></label><div class="pills" id="f-deps">${deps.length?deps.map(d=>`<button type="button" class="pill ${FORMDEP.includes(d)?'on':''}" data-act="dep" data-v="${esc(d)}">${esc(d)}</button>`).join(''):'<span class="muted">Aucun département dans la liste pour l\'instant.</span>'}</div></div></div>
   <div class="field"><label>Fonction dans la jeunesse</label><select class="inp" id="f-fonction">${fcts.map(f=>`<option ${(m?m.fonction:'Membre')===f?'selected':''}>${esc(f)}</option>`).join('')}</select></div>
   <div class="field"><label>Membre depuis</label><input type="date" class="inp" id="f-adh" value="${esc(m?.adhesion||today())}"></div>
   ${m?`<div class="field"><label>Statut</label><select class="inp" id="f-actif"><option value="1" ${m.actif?'selected':''}>Actif</option><option value="0" ${!m.actif?'selected':''}>Inactif</option></select></div>`
@@ -840,7 +840,9 @@ function memberForm(m){
   </div>
   <div class="foot"><button class="btn sec" data-act="closeModal">Annuler</button><button class="btn" data-act="saveMember" data-id="${m?.id||''}">Enregistrer</button></div>`;
 }
-function matchDep(v){if(!v)return'';return DB.settings.departements.find(d=>norm(d)===norm(v))||v}
+let FORMDEP=[];
+function depsOf(m){return m.deps&&m.deps.length?m.deps:(m.departement?String(m.departement).split(/\s*[,;/]\s*/).filter(Boolean):[])}
+function matchDep(v){if(!v)return'';return String(v).split(/\s*[,;/]\s*/).filter(Boolean).map(x=>DB.settings.departements.find(d=>norm(d)===norm(x))||x).join(', ')}
 function depPills_unused(){return DB.settings.departements.map(d=>`<button type="button" class="pill ${FORMDEP.includes(d)?'on':''}" data-act="dep" data-v="${esc(d)}">${esc(d)}</button>`).join('')}
 function credModal(a,title){
   const m=member(a.memberId),r=role(a.roleId);const id=[m.tel,m.email].filter(Boolean).join(' ou ');
@@ -949,6 +951,7 @@ document.addEventListener('click',async e=>{
     case'copyTxt':copy(d.t);break;
     case'addMember':openModal(memberForm(null),{pane:paneId},true);break;
     case'editMember':openModal(memberForm(member(+d.id)),{pane:paneId},true);break;
+    case'dep':{const v=d.v;FORMDEP=FORMDEP.includes(v)?FORMDEP.filter(x=>x!==v):[...FORMDEP,v];el.classList.toggle('on',FORMDEP.includes(v));break}
     case'bap':FORMBAP=d.v==='1';document.querySelectorAll('#f-bap .pill').forEach(b=>b.classList.toggle('on',b.dataset.v===d.v));break;
     case'saveMember':saveMember(d.id?+d.id:null);break;
     case'createAccess':{const m=member(+d.m);if(!m.tel&&!m.email){toast('Ajoute d\'abord un téléphone ou un e-mail.');return}
@@ -1094,7 +1097,7 @@ function saveMember(id){
   const dup=DB.members.find(m=>m.id!==id&&((tel&&digits(m.tel)===digits(tel))||(email&&m.email===email)||norm(fullName(m))===norm(nom+prenoms)));
   if(dup){toast(`Déjà enregistré : ${fullName(dup)}`);return}
   const data={nom,prenoms,tel,email,anniv:readAnniv(),baptise:FORMBAP,profession:document.getElementById('f-prof').value.trim(),habitation:document.getElementById('f-hab').value.trim(),
-    departement:document.getElementById('f-dep').value,fonction:document.getElementById('f-fonction').value||'Membre',adhesion:document.getElementById('f-adh').value};
+    deps:FORMDEP.slice(),departement:FORMDEP.join(', '),fonction:document.getElementById('f-fonction').value||'Membre',adhesion:document.getElementById('f-adh').value};
   if(id){const m=member(id);data.actif=document.getElementById('f-actif').value==='1';Object.assign(m,data);log(who(),'Fiche modifiée',fullName(m));closeModal();toast('Fiche mise à jour.');refresh();return}
   const wantAcc=document.getElementById('f-access').checked;
   const m={id:DB.seq++,...data,actif:true,creeLe:nowIso()};DB.members.push(m);log(who(),'Jeune enregistré',`${fullName(m)} (${data.departement||'sans département'})`);

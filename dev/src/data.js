@@ -30,17 +30,19 @@ async function must(p){const{data,error}=await p;if(error)throw error;return dat
 /* ---- chargement complet (moins de 100 jeunes : on charge tout ce qu'on a le droit de voir) ---- */
 async function loadAll(){
   const mc=await rpc('mon_compte');ME=mc;if(!mc||mc.etat!=='actif')return mc;
-  const [deps,fons,mems,roles,comptes,camps,lignes,pays,rels,notifs,journ,params,evts,parts,etaches,affs,taches,tpers,trap,anniv]=await Promise.all([
+  const [deps,fons,mems,roles,comptes,camps,lignes,pays,rels,notifs,journ,params,evts,parts,etaches,affs,taches,tpers,trap,anniv,mdeps]=await Promise.all([
     q('departements',r=>r.order('nom')),q('fonctions',r=>r.order('nom')),q('membres'),q('roles'),q('comptes'),q('campagnes',r=>r.order('cree_le')),q('campagne_lignes'),
     q('paiements',r=>r.order('saisi_le')),q('relances',r=>r.order('le')),q('notifications',r=>r.order('cree_le',{ascending:false}).limit(300)),
     q('journal',r=>r.order('le',{ascending:false}).limit(800)),q('parametres'),q('evenements',r=>r.order('debut')),q('evenement_participants'),q('evenement_taches',r=>r.order('id')),
-    q('affiches'),q('taches',r=>r.order('cree_le')),q('tache_personnes'),q('tache_rappels',r=>r.order('le')),rpc('anniversaires').catch(()=>[])]);
+    q('affiches'),q('taches',r=>r.order('cree_le')),q('tache_personnes'),q('tache_rappels',r=>r.order('le')),rpc('anniversaires').catch(()=>[]),q('membre_departements').catch(()=>[])]);
   const D=emptyDB();
   const depName={},fonName={};deps.forEach(d=>{depName[d.id]=d.nom;D.depIds[d.nom]=d.id});fons.forEach(f=>{fonName[f.id]=f.nom;D.fonIds[f.nom]=f.id});
   D.settings.departements=deps.map(d=>d.nom);D.settings.fonctions=fons.map(f=>f.nom);
   const anniv2=(j,m)=>j&&m?String(m).padStart(2,'0')+'-'+String(j).padStart(2,'0'):'';
+  const mdep={};(mdeps||[]).forEach(x=>{(mdep[x.membre_id]=mdep[x.membre_id]||[]).push(depName[x.departement_id])});
+  const depsM=m=>{const L=(mdep[m.id]||[]).filter(Boolean);const pr=depName[m.departement_id];if(pr&&!L.includes(pr))L.unshift(pr);else if(pr){L.splice(L.indexOf(pr),1);L.unshift(pr)}return L};
   D.members=mems.map(m=>({id:I(m.id),uuid:m.id,nom:m.nom,prenoms:m.prenoms||'',tel:m.tel||'',email:m.email||'',anniv:anniv2(m.anniv_jour,m.anniv_mois),baptise:!!m.baptise,
-    fonction:fonName[m.fonction_id]||'Membre',profession:m.profession||'',habitation:m.habitation||'',departement:depName[m.departement_id]||'',adhesion:m.adhesion,actif:m.actif,creeLe:m.cree_le}));
+    fonction:fonName[m.fonction_id]||'Membre',profession:m.profession||'',habitation:m.habitation||'',deps:depsM(m),departement:depsM(m).join(', '),adhesion:m.adhesion,actif:m.actif,creeLe:m.cree_le}));
   anniv.forEach(a=>{if(!D.members.find(x=>x.uuid===a.membre_id))D.members.push({id:I(a.membre_id),uuid:a.membre_id,nom:a.nom,prenoms:a.prenoms||'',tel:a.tel||'',email:'',anniv:anniv2(a.anniv_jour,a.anniv_mois),
     baptise:false,fonction:'Membre',profession:'',habitation:'',departement:a.departement||'',adhesion:null,actif:true,partiel:true})});
   D.roles=roles.map(r=>({id:r.id,nom:r.nom,systeme:r.systeme,perms:r.permissions||[]})).sort((a,b)=>(a.id==='president'?-1:b.id==='president'?1:a.id==='membre'?1:b.id==='membre'?-1:a.nom.localeCompare(b.nom)));
@@ -195,24 +197,25 @@ API.fgPresSend=async()=>{const v=gv('fg-id');if(!v){fgErr('Entre ton numéro ou 
 
 /* jeunes */
 function readMemberForm(){const nom=gv('f-nom').toUpperCase(),prenoms=gv('f-prenoms').toUpperCase(),tel=gv('f-tel'),email=gv('f-email').toLowerCase();
-  const an=readAnniv();const dep=gv('f-dep'),fon=gv('f-fonction');
+  const an=readAnniv();const fon=gv('f-fonction');
   return{nom,prenoms,tel:tel||null,email:email||null,anniv_jour:an?+an.slice(3):null,anniv_mois:an?+an.slice(0,2):null,baptise:FORMBAP,profession:gv('f-prof')||null,habitation:gv('f-hab')||null,
-    departement_id:dep?DB.depIds[dep]||null:null,fonction_id:fon&&fon!=='Membre'?DB.fonIds[fon]||null:(DB.fonIds['Membre']||null),adhesion:gv('f-adh')||undefined}}
+    departement_id:FORMDEP.length?DB.depIds[FORMDEP[0]]||null:null,fonction_id:fon&&fon!=='Membre'?DB.fonIds[fon]||null:(DB.fonIds['Membre']||null),adhesion:gv('f-adh')||undefined}}
 API.saveMember=async(p,d)=>{const r=readMemberForm();if(!r.nom){toast('Le nom est obligatoire.');return'nosync'}
   if(r.email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.email)){toast('E-mail invalide.');return'nosync'}
   const id=d.id?+d.id:null;
   const dup=DB.members.find(m=>m.id!==id&&!m.partiel&&((r.email&&m.email===r.email)||norm(fullName(m))===norm(r.nom+r.prenoms)));if(dup){toast(`Déjà enregistré : ${fullName(dup)}`);return'nosync'}
-  if(id){const act=gv('f-actif');if(act)r.actif=act==='1';await must(sb.from('membres').update(r).eq('id',U(id)));closeModal();toast('Fiche mise à jour.');return}
-  const wantAcc=document.getElementById('f-access')?.checked;const row=await must(sb.from('membres').insert(r).select().single());
+  const depIds=FORMDEP.map(n=>DB.depIds[n]).filter(Boolean);
+  if(id){const act=gv('f-actif');if(act)r.actif=act==='1';await must(sb.from('membres').update(r).eq('id',U(id)));await rpc('definir_departements',{p_membre:U(id),p_departements:depIds});closeModal();toast('Fiche mise à jour.');return}
+  const wantAcc=document.getElementById('f-access')?.checked;const row=await must(sb.from('membres').insert(r).select().single());await rpc('definir_departements',{p_membre:row.id,p_departements:depIds});
   if(wantAcc&&(r.tel||r.email)){const res=await fn('creer-acces',{membre_id:row.id,role:'membre'});await sync();showCreds(I(row.id),res,'Jeune enregistré · accès créé');return'nosync'}
   closeModal();toast(wantAcc?'Enregistré. Pas d\'accès : il faut un téléphone ou un e-mail.':'Jeune enregistré.')};
 API.confirmInactive=async(p,d)=>{await must(sb.from('membres').update({actif:false}).eq('id',U(d.id)));closeModal();toast('Membre inactif. Son accès est bloqué, son historique est gardé.')};
 API.setActive=async(p,d)=>{await must(sb.from('membres').update({actif:true}).eq('id',U(d.id)));toast('Membre réactivé.')};
-API.listRemove=async(p,d)=>{const k=d.k,t=k==='departements'?'departements':'fonctions';const used=DB.members.filter(m=>(k==='departements'?m.departement:m.fonction)===d.v).length;
+API.listRemove=async(p,d)=>{const k=d.k,t=k==='departements'?'departements':'fonctions';const used=DB.members.filter(m=>k==='departements'?depsOf(m).includes(d.v):m.fonction===d.v).length;
   if(used){toast(`${used} jeune${used>1?'s ont':' a'} « ${d.v} » sur sa fiche : change-les d'abord.`);return'nosync'}
   await must(sb.from(t).delete().eq('id',k==='departements'?DB.depIds[d.v]:DB.fonIds[d.v]));toast('Retiré de la liste.')};
 API.confirmImport=async()=>{if(!IMPORT)return'nosync';const sel=[...document.querySelectorAll('.imp-chk')].filter(c=>c.checked).map(c=>IMPORT.rows[+c.dataset.i]);const acc=document.getElementById('imp-acc').checked;
-  const missing=[...new Set(sel.flatMap(o=>[o.departement&&!DB.depIds[o.departement]?['departements',o.departement]:null,o.fonction&&o.fonction!=='Membre'&&!DB.fonIds[o.fonction]?['fonctions',o.fonction]:null]).filter(Boolean).map(JSON.stringify))].map(JSON.parse);
+  const missing=[...new Set(sel.flatMap(o=>[...depsOf(o).filter(x=>!DB.depIds[x]).map(x=>['departements',x]),o.fonction&&o.fonction!=='Membre'&&!DB.fonIds[o.fonction]?['fonctions',o.fonction]:null]).filter(Boolean).map(JSON.stringify))].map(JSON.parse);
   for(const[t,nom]of missing){await sb.from(t).insert({nom})}
   const lignes=sel.map(o=>({nom:o.nom,prenoms:o.prenoms,tel:o.tel,email:o.email,anniversaire:o.anniv?o.anniv.slice(3)+'/'+o.anniv.slice(0,2):'',baptise:o.baptise?'oui':'non',profession:o.profession,habitation:o.habitation,departement:o.departement,fonction:o.fonction==='Membre'?'':o.fonction}));
   const res=await rpc('importer_jeunes',{p_lignes:lignes});IMPORT=null;closeModal();await sync();
