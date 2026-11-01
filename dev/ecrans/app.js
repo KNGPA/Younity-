@@ -757,7 +757,7 @@ function vProfil(p){
   return wTitle(p,'Mon profil','')+`<div class="${p.mode==='web'?'grid':''}" style="${p.mode==='web'?'grid-template-columns:1fr 1fr;align-items:start':''}"><div class="card mb"><div style="text-align:center"><div class="avatar" style="margin:0 auto 10px;width:56px;height:56px;font-size:18px">${initials(m.nom)}</div><div class="name" style="font-size:16px">${esc(fullName(m))}</div><div class="mb">${roleChip(a)}</div></div>
     <div class="kv"><span>Téléphone</span><b>${esc(m.tel)||'—'}</b></div><div class="kv"><span>Département</span><b>${esc(m.departement)||'—'}</b></div><div class="kv"><span>Fonction</span><b>${esc(m.fonction)}</b></div><div class="kv"><span>Anniversaire</span><b>${fanniv(m.anniv)||'—'}</b></div><div class="kv"><span>Membre depuis</span><b>${fdate(m.adhesion)}</b></div>
     <div class="field mt"><label>Mon e-mail (sert aussi à me connecter et à récupérer mon mot de passe)</label><div class="row" style="gap:8px"><input class="inp" id="pm-mail-${p.id}" value="${esc(m.email)}" placeholder="nom@mail.com"><button class="btn sec" data-act="saveMail">Enregistrer</button></div></div>
-    <div class="muted">Pour changer de numéro de téléphone, demande au président : c'est le bureau qui le met à jour.</div></div>
+    ${can(p,'membres_gerer')?`<button class="btn sec block mt" data-act="editMember" data-id="${m.id}" data-self="1"><i data-lucide="pencil" class="i i-sm"></i>Modifier mes informations</button>`:`<div class="muted">Pour changer de numéro de téléphone, demande au président : c'est le bureau qui le met à jour.</div>`}</div>
   <div class="card mb"><h3><i data-lucide="bell" class="i"></i>Notifications</h3><div class="muted mb">Choisis ce que tu veux recevoir sur ton téléphone.</div>
     ${NTYPES.filter(([k])=>k!=='relances'||sRole(p).id==='membre'||sMember(p)).map(([k,l,ic])=>`<div class="row between" style="padding:9px 0;border-bottom:1px solid #f0f2f1"><div class="row" style="gap:10px"><i data-lucide="${ic}" class="i" style="color:var(--green)"></i><div><div class="name" style="font-size:13px">${l}</div><div class="muted">${{messages:'Messages directs envoyés par le bureau',paiements:sRole(p).id==='membre'?'Quand la trésorière enregistre un de tes versements':'Chaque paiement validé',campagnes:'Nouvelles campagnes et changements de montant',relances:'Rappels quand tu as un retard',anniversaires:'Anniversaires des jeunes (le jour J et 7 jours avant)',evenements:'Nouveaux événements, changements et rappels',taches:'Tâches qui te sont confiées et rappels du secrétariat'}[k]}</div></div></div><button class="toggle ${prefsOf(a)[k]?'on':''}" data-act="togglePref" data-k="${k}"></button></div>`).join('')}</div>
   <div class="card mb"><h3><i data-lucide="lock" class="i"></i>Changer mon mot de passe</h3><div class="field"><label>Nouveau mot de passe</label><input class="inp" type="password" id="mc-1-${p.id}"></div><div class="field"><label>Confirmer</label><input class="inp" type="password" id="mc-2-${p.id}"></div><button class="btn block" data-act="mcSave">Enregistrer</button></div></div>
@@ -863,13 +863,14 @@ function memberForm(m){
   <div class="field full"><label>Départements <span class="muted" style="font-weight:500">(un ou plusieurs)</span></label><div class="pills" id="f-deps">${deps.length?deps.map(d=>`<button type="button" class="pill ${FORMDEP.includes(d)?'on':''}" data-act="dep" data-v="${esc(d)}">${esc(d)}</button>`).join(''):'<span class="muted">Aucun département dans la liste pour l\'instant.</span>'}</div></div></div>
   <div class="field"><label>Fonction dans la jeunesse</label><select class="inp" id="f-fonction">${fcts.map(f=>`<option ${(m?m.fonction:'Membre')===f?'selected':''}>${esc(f)}</option>`).join('')}</select></div>
   <div class="field"><label>Membre depuis</label><input type="date" class="inp" id="f-adh" value="${esc(m?.adhesion||today())}"></div>
-  ${m?`<div class="field"><label>Statut</label><select class="inp" id="f-actif"><option value="1" ${m.actif?'selected':''}>Actif</option><option value="0" ${!m.actif?'selected':''}>Inactif</option></select></div>`
+  ${m&&acctOfMember(m.id)?.roleId==='president'?'':m?`<div class="field"><label>Statut</label><select class="inp" id="f-actif"><option value="1" ${m.actif?'selected':''}>Actif</option><option value="0" ${!m.actif?'selected':''}>Inactif</option></select></div>`
      :`<div class="field full"><label class="row" style="gap:8px;font-weight:600"><input type="checkbox" id="f-access" checked> Créer tout de suite son accès membre (il recevra un mot de passe)</label></div>`}
   </div>
   <div class="foot"><button class="btn sec" data-act="closeModal">Annuler</button><button class="btn" data-act="saveMember" data-id="${m?.id||''}">Enregistrer</button></div>`;
 }
 let FORMDEP=[];
 function depsOf(m){return m.deps&&m.deps.length?m.deps:(m.departement?String(m.departement).split(/\s*[,;/]\s*/).filter(Boolean):[])}
+function telN(t){let n=digits(t||'');if(n.startsWith('225')&&n.length>10)n=n.slice(3);return n}
 function matchDep(v){if(!v)return'';return String(v).split(/\s*[,;/]\s*/).filter(Boolean).map(x=>DB.settings.departements.find(d=>norm(d)===norm(x))||x).join(', ')}
 function depPills_unused(){return DB.settings.departements.map(d=>`<button type="button" class="pill ${FORMDEP.includes(d)?'on':''}" data-act="dep" data-v="${esc(d)}">${esc(d)}</button>`).join('')}
 function credModal(a,title){
@@ -1124,7 +1125,9 @@ function saveMember(id){
   const prenoms=document.getElementById('f-prenoms').value.trim().toUpperCase();
   const tel=document.getElementById('f-tel').value.trim(),email=document.getElementById('f-email').value.trim().toLowerCase();
   if(email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){toast('E-mail invalide.');return}
-  const dup=DB.members.find(m=>m.id!==id&&((tel&&digits(m.tel)===digits(tel))||(email&&m.email===email)||norm(fullName(m))===norm(nom+prenoms)));
+  const dT=tel&&DB.members.find(m=>m.id!==id&&m.tel&&telN(m.tel)===telN(tel));if(dT){toast(`Le numéro ${tel} est déjà enregistré pour ${titleCase(fullName(dT))}.`);return}
+  const dE=email&&DB.members.find(m=>m.id!==id&&m.email&&m.email.toLowerCase()===email);if(dE){toast(`L'e-mail ${email} est déjà enregistré pour ${titleCase(fullName(dE))}.`);return}
+  const dup=DB.members.find(m=>m.id!==id&&norm(fullName(m))===norm(nom+prenoms));
   if(dup){toast(`Déjà enregistré : ${fullName(dup)}`);return}
   const data={nom,prenoms,tel,email,anniv:readAnniv(),baptise:FORMBAP,profession:document.getElementById('f-prof').value.trim(),habitation:document.getElementById('f-hab').value.trim(),
     deps:FORMDEP.slice(),departement:FORMDEP.join(', '),fonction:document.getElementById('f-fonction').value||'Membre',adhesion:document.getElementById('f-adh').value};

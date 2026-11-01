@@ -209,7 +209,9 @@ function readMemberForm(){const nom=gv('f-nom').toUpperCase(),prenoms=gv('f-pren
 API.saveMember=async(p,d)=>{const r=readMemberForm();if(!r.nom){toast('Le nom est obligatoire.');return'nosync'}
   if(r.email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.email)){toast('E-mail invalide.');return'nosync'}
   const id=d.id?+d.id:null;
-  const dup=DB.members.find(m=>m.id!==id&&!m.partiel&&((r.email&&m.email===r.email)||norm(fullName(m))===norm(r.nom+r.prenoms)));if(dup){toast(`Déjà enregistré : ${fullName(dup)}`);return'nosync'}
+  const dT=r.tel&&DB.members.find(m=>m.id!==id&&m.tel&&telN(m.tel)===telN(r.tel));if(dT){toast(`Le numéro ${r.tel} est déjà enregistré pour ${titleCase(fullName(dT))}.`);return'nosync'}
+  const dE=r.email&&DB.members.find(m=>m.id!==id&&m.email&&m.email.toLowerCase()===r.email);if(dE){toast(`L'e-mail ${r.email} est déjà enregistré pour ${titleCase(fullName(dE))}.`);return'nosync'}
+  const dup=DB.members.find(m=>m.id!==id&&!m.partiel&&norm(fullName(m))===norm(r.nom+r.prenoms));if(dup){toast(`Déjà enregistré : ${fullName(dup)}`);return'nosync'}
   const depIds=FORMDEP.map(n=>DB.depIds[n]).filter(Boolean);
   if(id){const act=gv('f-actif');if(act)r.actif=act==='1';await must(sb.from('membres').update(r).eq('id',U(id)));await rpc('definir_departements',{p_membre:U(id),p_departements:depIds});closeModal();toast('Fiche mise à jour.');return}
   const wantAcc=document.getElementById('f-access')?.checked;const row=await must(sb.from('membres').insert(r).select().single());await rpc('definir_departements',{p_membre:row.id,p_departements:depIds});
