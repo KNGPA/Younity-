@@ -390,7 +390,7 @@ function adminHero(p,ec){
     <div class="hero-pills"><span>${c.lignes.length} membres</span><span>${s.nbSolde} soldés</span><span>${s.nbRetard} en retard</span><span>${nbPer(c)}</span></div></div>
   ${ec.length>1?`<div class="row between" style="margin:2px 2px 8px"><div class="name" style="font-size:14px">Autres campagnes en cours</div><button class="link" data-act="tab" data-tab="campagnes">Toutes (${DB.campaigns.length}) →</button></div>
   <div class="minis mb">${ec.slice(1,3).map(x=>{const t=campStats(x);return miniCard(x,t.taux,t.verse,t.reste,`${perPos(x,t.cur)} · ${t.nbRetard} en retard`,`data-act="opencamp" data-id="${x.id}"`)}).join('')}</div>`
-  :`<div class="row" style="justify-content:flex-end;margin:-4px 2px 12px"><button class="link" data-act="tab" data-tab="campagnes">Toutes les campagnes (${DB.campaigns.length}) →</button></div>`}${can(p,'paiements_valider')&&typeof qrBar==='function'?`<div class="row between" style="margin:2px 2px 8px"><div class="name" style="font-size:14px">Valider les paiements</div><button class="link" data-act="tab" data-tab="paiements">Saisir un paiement →</button></div>${qrBar(p)}`:''}${myPayCard(p)}`;
+  :`<div class="row" style="justify-content:flex-end;margin:-4px 2px 12px"><button class="link" data-act="tab" data-tab="campagnes">Toutes les campagnes (${DB.campaigns.length}) →</button></div>`}${myPayCard(p)}`;
 }
 function myLateBlock(p){const me=sMember(p);if(!me||sRole(p).id==='membre')return'';
   const L=DB.campaigns.filter(c=>c.statut==='En cours'&&c.lignes.some(l=>l.memberId===me.id)).map(c=>({c,s:situation(c.id,me.id)})).filter(o=>o.s.retard>0).sort((x,y)=>y.s.retard-x.s.retard);
