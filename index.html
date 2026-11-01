@@ -2463,7 +2463,7 @@ function vProfil(p){const h=vProfil0(p);const i=h.indexOf('<div class="card mb">
 /* toucher une notification ouvre la liste des notifications */
 if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.younity==='notifications'){const p=PANES[0];if(p&&p.session&&!p.session.mustChange){sync(true).then(()=>{API.openNotifs(p)})}}});
 
-window.YV='2.2.1';showSplash=function(){};const SP_T0=Date.now();function hideSplash(){const w=document.getElementById('spWrap');if(!w||w.dataset.out)return;w.dataset.out=1;const d=Math.max(0,2200-(Date.now()-SP_T0));setTimeout(()=>{w.firstElementChild&&w.firstElementChild.classList.add('out');setTimeout(()=>w.remove(),600)},d)}setTimeout(hideSplash,20000);
+window.YV='2.2.2';showSplash=function(){};const SP_T0=Date.now();function hideSplash(){const w=document.getElementById('spWrap');if(!w||w.dataset.out)return;w.dataset.out=1;const d=Math.max(0,2200-(Date.now()-SP_T0));setTimeout(()=>{w.firstElementChild&&w.firstElementChild.classList.add('out');setTimeout(()=>w.remove(),600)},d)}setTimeout(hideSplash,20000);
 /* ================== APPLICATION NATIVE (Android, Capacitor) ================== */
 const NATIF=!!(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform());
 function PL(n){try{return(Capacitor.Plugins&&Capacitor.Plugins[n])||Capacitor.registerPlugin(n)}catch(e){return null}}
@@ -2563,6 +2563,24 @@ function majAuto(){const U=PL('CapacitorUpdater');
 
 /* Version web (navigateur / ancienne appli Chrome) : on l'indique dans Mon profil */
 if(!NATIF){const vpw=vProfil;vProfil=function(p){return vpw(p)+`<div class="card mt"><div class="name" style="font-size:13.5px">Younity ${esc(window.YV)} · version navigateur</div><div class="muted mb">Tu utilises Younity dans le navigateur (Chrome). Pour l'application Android avec ses propres notifications, installe-la :</div><a class="btn sec sm" href="https://kngpa.github.io/android" target="_blank" rel="noopener"><i data-lucide="download" class="i i-sm"></i>Installer l'application Android</a></div>`}}
+
+/* ---- Tirer l'écran vers le bas pour actualiser (téléphone et tablette) ---- */
+(function(){let y0=null,dy=0,sc=null,busy=false,el=null;const SEUIL=72;
+  const ind=()=>{if(!el){el=document.createElement('div');el.id='ptr';el.innerHTML='<i data-lucide="refresh-cw" class="i"></i>';
+    el.style.cssText='position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 8px);width:40px;height:40px;margin-left:-20px;border-radius:50%;background:#fff;color:#135C2E;box-shadow:0 4px 16px rgba(0,0,0,.18);display:grid;place-items:center;z-index:8000;opacity:0;transform:translateY(-50px);pointer-events:none';
+    document.body.appendChild(el);try{lucide.createIcons({nodes:[el]})}catch(_){try{lucide.createIcons()}catch(__){}}}return el};
+  const pose=(d,anim)=>{const e=ind();const k=Math.min(d,110);e.style.transition=anim?'transform .25s,opacity .25s':'none';e.style.transform=`translateY(${k-50}px) rotate(${k*3}deg)`;e.style.opacity=Math.min(1,k/SEUIL)};
+  document.addEventListener('touchstart',e=>{if(busy||e.touches.length!==1||document.getElementById('modalBg')?.classList.contains('show')||document.getElementById('spWrap'))return;
+    if(!PANES[0]||!PANES[0].session)return;
+    sc=e.target.closest&&e.target.closest('.m-body,.w-main');const s=sc||document.scrollingElement;if(s.scrollTop>0||document.scrollingElement.scrollTop>0){y0=null;return}
+    y0=e.touches[0].clientY;dy=0},{passive:true});
+  document.addEventListener('touchmove',e=>{if(y0===null||busy)return;dy=(e.touches[0].clientY-y0)*0.5;if(dy>4)pose(dy)},{passive:true});
+  document.addEventListener('touchend',async()=>{if(y0===null||busy)return;y0=null;
+    if(dy<SEUIL){pose(0,true);return}
+    busy=true;const e=ind();e.style.transition='transform .2s';e.style.transform='translateY(20px)';e.style.opacity=1;e.firstElementChild&&(e.firstElementChild.style.animation='ptrspin .8s linear infinite');
+    const t0=LASTSYNC;try{await sync(true)}catch(_){}toast(LASTSYNC!==t0?'À jour ✓':'Pas de connexion internet.')
+    if(e.firstElementChild)e.firstElementChild.style.animation='';pose(0,true);busy=false},{passive:true});
+  const st=document.createElement('style');st.textContent='@keyframes ptrspin{to{transform:rotate(360deg)}}';document.head.appendChild(st)})();
 
 boot();
 if('serviceWorker' in navigator&&location.protocol==='https:'&&!NATIF)navigator.serviceWorker.register('sw.js').catch(()=>{});
