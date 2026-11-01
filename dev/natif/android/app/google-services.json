@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "480054812234",
+    "project_id": "younity-62a5f",
+    "storage_bucket": "younity-62a5f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:480054812234:android:37ac4248de5d5e1665d0b3",
+        "android_client_info": {
+          "package_name": "io.github.kngpa.younity"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBjenRIuTOAosXRVHO_TyeYgAbzZtTz_jY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

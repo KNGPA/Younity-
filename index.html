@@ -2452,7 +2452,7 @@ function vProfil(p){const h=vProfil0(p);const i=h.indexOf('<div class="card mb">
 /* toucher une notification ouvre la liste des notifications */
 if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.younity==='notifications'){const p=PANES[0];if(p&&p.session&&!p.session.mustChange){sync(true).then(()=>{API.openNotifs(p)})}}});
 
-window.YV='2.0.0';
+window.YV='2.1.0';
 /* ================== APPLICATION NATIVE (Android, Capacitor) ================== */
 const NATIF=!!(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform());
 function PL(n){try{return(Capacitor.Plugins&&Capacitor.Plugins[n])||Capacitor.registerPlugin(n)}catch(e){return null}}
@@ -2483,7 +2483,33 @@ if(NATIF){
     if(p&&p.session&&!p.session.mustChange){const t0=tabsFor(p)[0][0];if(p.tab&&p.tab!==t0){p.tab=t0;renderPane(p);return}}
     PL('App').minimizeApp()});
   try{PL('StatusBar').setStyle({style:'LIGHT'});PL('StatusBar').setBackgroundColor({color:'#FFFFFF'})}catch(e){}
-  majAuto();
+  try{majAuto()}catch(e){console.warn(e)}
+  try{if(!Capacitor.isPluginAvailable||Capacitor.isPluginAvailable('PushNotifications'))pushNatif()}catch(e){console.warn('push',e)}
+}
+
+/* ---- Notifications Android (Firebase Cloud Messaging) ---- */
+function pushNatif(){const PN=PL('PushNotifications');if(!PN)return;const LS='younity-fcm';
+  const tok=()=>{try{return localStorage.getItem(LS)}catch(_){return null}};
+  PN.createChannel({id:'younity',name:'Younity',description:'Paiements, rappels, événements, tâches',importance:4,visibility:1,vibration:true,lights:true,lightColor:'#135C2E'}).catch(()=>{});
+  PN.addListener('registration',async t=>{try{localStorage.setItem(LS,t.value)}catch(_){}
+    if(PANES[0]&&PANES[0].session)await rpc('enregistrer_abonnement',{p_endpoint:'fcm:'+t.value,p_p256dh:'fcm',p_auth:'fcm',p_appareil:'Application Android'}).catch(e=>console.warn('fcm',e));
+    PUSH_ETAT='?'});
+  PN.addListener('registrationError',e=>console.warn('fcm',e));
+  PN.addListener('pushNotificationActionPerformed',()=>{const p=PANES[0];if(p&&p.session&&!p.session.mustChange){p.sub='notifs';p.notif=null;renderPane(p);if(typeof sync==='function')sync()}});
+  PN.addListener('pushNotificationReceived',()=>{if(typeof sync==='function')sync()});
+  const perm=async()=>{try{return(await PN.checkPermissions()).receive}catch(_){return'denied'}};
+  pushEtat=async()=>{const r=await perm();return r==='denied'?'refuse':r==='granted'&&tok()?'actif':'inactif'};
+  activerPush=async(sil)=>{let r=await perm();if(r!=='granted'&&r!=='denied')r=(await PN.requestPermissions()).receive;
+    if(r!=='granted'){if(!sil)toast('Notifications refusées. Autorise-les dans Réglages > Applications > Younity > Notifications.');return false}
+    await PN.register();PUSH_ETAT='?';if(!sil)toast('Notifications activées sur ce téléphone 🔔');return true};
+  desactiverPush=async()=>{const t=tok();if(t)await rpc('supprimer_abonnement',{p_endpoint:'fcm:'+t}).catch(()=>{});
+    await PN.unregister().catch(()=>{});try{localStorage.removeItem(LS)}catch(_){}PUSH_ETAT='?'};
+  pushApresConnexion=async()=>{const r=await perm();if(r==='granted'){activerPush(true).catch(()=>{});return}if(r==='denied')return;
+    let plusTard=0;try{plusTard=+localStorage.getItem('younity-push-plustard')||0}catch(_){}if(Date.now()-plusTard<7*864e5)return;
+    setTimeout(()=>{if(document.getElementById('modalBg').classList.contains('show')||!PANES[0].session||PANES[0].session.mustChange)return;
+      openModal(`<div style="text-align:center"><div class="avatar" style="margin:0 auto 12px;width:56px;height:56px;background:var(--green-soft);color:var(--green)"><i data-lucide="bell-ring" class="i" style="width:28px;height:28px"></i></div>
+      <h2>Recevoir les notifications ?</h2><div class="muted">Younity te prévient sur ce téléphone, même quand l'application est fermée : paiements, rappels de cotisation, événements, tâches, anniversaires.</div></div>
+      <div class="foot"><button class="btn sec" data-act="pushPlusTard">Plus tard</button><button class="btn" data-act="pushActiver"><i data-lucide="bell" class="i i-sm"></i>Activer</button></div>`,{pane:'m'})},1500)};
 }
 
 /* ---- Mises à jour automatiques en arrière-plan ----

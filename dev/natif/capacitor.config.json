@@ -27,7 +27,7 @@
       "autoUpdate": false,
       "appReadyTimeout": 15000,
       "resetWhenUpdate": true,
-      "version": "2.0.0",
+      "version": "2.1.0",
       "autoDeleteFailed": true,
       "autoDeletePrevious": true
     }
