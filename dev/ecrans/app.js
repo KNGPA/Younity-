@@ -392,12 +392,17 @@ function adminHero(p,ec){
   <div class="minis mb">${ec.slice(1,3).map(x=>{const t=campStats(x);return miniCard(x,t.taux,t.verse,t.reste,`${perPos(x,t.cur)} · ${t.nbRetard} en retard`,`data-act="opencamp" data-id="${x.id}"`)}).join('')}</div>`
   :`<div class="row" style="justify-content:flex-end;margin:-4px 2px 12px"><button class="link" data-act="tab" data-tab="campagnes">Toutes les campagnes (${DB.campaigns.length}) →</button></div>`}`;
 }
+function myPayCard(p){const me=sMember(p);if(!me||sRole(p).id==='membre')return'';const L=payable(me);if(!L.length)return'';
+  const reste=L.reduce((a,o)=>a+o.s.reste,0),ret=L.reduce((a,o)=>a+o.s.retard,0);
+  return `<div class="card mb" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><div class="avatar" style="background:var(--gold-soft);color:#8a6110"><i data-lucide="wallet" class="i"></i></div>
+  <div style="flex:1;min-width:150px"><div class="name">Ma cotisation</div><div class="muted">Reste ${fmt(reste)}${ret?` · <b style="color:var(--red)">${fmt(ret)} pour être à jour</b>`:' · à jour'}</div></div>
+  ${payOn()?`<button class="btn gold ${p.mode==='mobile'?'block':''}" data-act="payInApp"><i data-lucide="wallet" class="i"></i>Payer ma cotisation</button>`:`<button class="btn sec ${p.mode==='mobile'?'block':''}" data-act="tab" data-tab="situation">Voir ma situation</button>`}</div>`}
 function vDashboard(p){
   const ec=sortCamps(enCours());
   const acts='';
   let h=bdBanner(p)+(p.mode==='web'?wTitle(p,`Bonjour ${esc(prenomOf(sMember(p)))} 👋`,`${sRole(p).id==='president'?'Super admin':esc(sRole(p).nom)} · ${ec.length} campagne${ec.length>1?'s':''} en cours`,acts):`<div class="muted mb" style="font-size:13px">Bonjour <b style="color:var(--ink)">${esc(prenomOf(sMember(p)))}</b> 👋 · ${ec.length} campagne${ec.length>1?'s':''} en cours</div>`);
   if(can(p,'campagnes_voir')){
-    h+=adminHero(p,ec);
+    h+=myPayCard(p)+adminHero(p,ec);
     const glob=can(p,'paiements_valider')||can(p,'journal');const myId=sMember(p).id;
     const recent=DB.payments.filter(x=>!x.annule&&(glob||x.memberId===myId)).slice().sort((a,b)=>b.saisiLe.localeCompare(a.saisiLe)).slice(0,5);
     const c=ec[0];const late=c?c.lignes.map(l=>({x:situation(c.id,l.memberId),m:member(l.memberId)})).filter(o=>o.x.retard>0).sort((a,b)=>b.x.retard-a.x.retard):[];
