@@ -114,12 +114,37 @@ if(!NATIF){const vpw=vProfil;vProfil=function(p){return vpw(p)+`<div class="card
   document.addEventListener('touchend',async()=>{if(y0===null||busy)return;y0=null;
     if(dy<SEUIL){pose(0,true);return}
     busy=true;const e=ind();e.style.transition='transform .2s';e.style.transform='translateY(20px)';e.style.opacity=1;e.firstElementChild&&(e.firstElementChild.style.animation='ptrspin .8s linear infinite');
-    const t0=LASTSYNC;try{await sync(true)}catch(_){}toast(LASTSYNC!==t0?'À jour ✓':'Pas de connexion internet.')
+    if(await nouvelleVersion(true))return;const t0=LASTSYNC;try{await sync(true)}catch(_){}toast(LASTSYNC!==t0?'À jour ✓':'Pas de connexion internet.')
     if(e.firstElementChild)e.firstElementChild.style.animation='';pose(0,true);busy=false},{passive:true});
   const st=document.createElement('style');st.textContent='@keyframes ptrspin{to{transform:rotate(360deg)}}';document.head.appendChild(st)})();
 
 /* ---- Bouton « Actualiser » (ordinateur, écrans sans geste tactile) ---- */
 document.addEventListener('click',async e=>{const b=e.target.closest&&e.target.closest('[data-act="actualiser"]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();
   if(b.dataset.busy)return;b.dataset.busy=1;const i=b.querySelector('svg,i');if(i)i.style.animation='ptrspin .8s linear infinite';
-  const t0=LASTSYNC;try{await sync(true)}catch(_){}toast(LASTSYNC!==t0?'À jour ✓':'Pas de connexion internet.');
+  if(await nouvelleVersion(true))return;const t0=LASTSYNC;try{await sync(true)}catch(_){}toast(LASTSYNC!==t0?'À jour ✓':'Pas de connexion internet.');
   const b2=document.querySelector('[data-act="actualiser"]');if(b2){delete b2.dataset.busy;const i2=b2.querySelector('svg,i');if(i2)i2.style.animation=''}},true);
+
+
+/* ---- Nouvelle version : bandeau « Mise à jour disponible » ; un toucher l'installe tout de suite ----
+   Version web et appli Android 2.2.0+ (qui charge le site) : on recharge la page sur la nouvelle version.
+   Ancienne appli Android (écrans intégrés) : téléchargement puis installation immédiate. */
+let NV=null,NV_T=0;
+async function lireVersion(){const r=await fetch('https://kngpa.github.io/Younity-/natif/version.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)throw 0;return r.json()}
+async function appliquerVersion(j){
+  if(NATIF&&location.hostname==='localhost'){const U=PL('CapacitorUpdater');if(U){toast('Installation de la mise à jour…');
+    try{const L=await U.list();let b=(L.bundles||[]).find(x=>x.version===j.version&&x.status!=='error');if(!b)b=await U.download({url:j.url,version:j.version});await U.set({id:b.id});return}catch(e){toast('Mise à jour impossible pour le moment.');return}}}
+  toast('Mise à jour en cours…');try{const rs=await navigator.serviceWorker?.getRegistrations?.();(rs||[]).forEach(r=>r.update().catch(()=>{}))}catch(_){}
+  setTimeout(()=>location.replace(location.pathname+'?v='+encodeURIComponent(j.version)+location.hash),350)}
+function bandeauVersion(j){let el=document.getElementById('nvBar');if(!j){if(el)el.remove();return}
+  if(!el){el=document.createElement('button');el.id='nvBar';el.type='button';document.body.appendChild(el);el.addEventListener('click',()=>appliquerVersion(NV))}
+  el.style.cssText='position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top) + 10px);z-index:9500;background:#135C2E;color:#fff;border:0;border-radius:14px;padding:11px 14px;display:flex;align-items:center;gap:10px;font:600 13.5px/1.3 inherit;box-shadow:0 10px 30px rgba(0,0,0,.25);width:min(92vw,420px);text-align:left;cursor:pointer';
+  el.innerHTML=`<span style="width:30px;height:30px;border-radius:50%;background:#F2B233;color:#1a1a1a;display:grid;place-items:center;flex:none;font-size:16px">↻</span><span style="flex:1"><b>Mise à jour disponible</b><br><span style="opacity:.8;font-weight:500;font-size:12px">Younity ${esc(j.version)} · touche pour l'installer</span></span><span style="background:#F2B233;color:#1a1a1a;border-radius:10px;padding:7px 10px;font-weight:800;font-size:12.5px">Installer</span>`}
+async function nouvelleVersion(appliquer){try{const j=await lireVersion();NV_T=Date.now();
+    if(vNum(j.version)>vNum(window.YV)){NV=j;if(appliquer){appliquerVersion(j);return true}bandeauVersion(j);
+      if(!nouvelleVersion.vu){nouvelleVersion.vu=1;try{if(typeof notifLocale==='function')notifLocale(j)}catch(_){}}return true}
+    NV=null;bandeauVersion(null)}catch(_){}return false}
+if(!(NATIF&&location.hostname==='localhost')){
+  setTimeout(()=>nouvelleVersion(false),5000);
+  setInterval(()=>{if(document.visibilityState==='visible')nouvelleVersion(false)},5*60000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&Date.now()-NV_T>60000)nouvelleVersion(false)});
+}
