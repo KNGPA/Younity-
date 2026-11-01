@@ -84,7 +84,10 @@ async function majVerif(manuel){const U=PL('CapacitorUpdater');if(!U||(!manuel&&
     await U.next({id:b.id});Object.assign(MAJ,{etat:'pret',v:j.version,id:b.id});majBar();
     if(j.forcer)await U.set({id:b.id});return'ok'
   }catch(e){console.warn('maj',e);MAJ.etat='';majBar();if(manuel)toast('Mise à jour impossible pour le moment (connexion ?).')}}
-function majAuto(){const U=PL('CapacitorUpdater');if(!U)return;
+function majAuto(){const U=PL('CapacitorUpdater');
+  if(location.hostname!=='localhost'){try{U&&U.notifyAppReady().catch(()=>{})}catch(_){}
+    const vp0=vProfil;vProfil=function(p){return vp0(p)+`<div class="card mt"><div class="name" style="font-size:13.5px">Younity ${esc(window.YV)} · application Android</div><div class="muted">Toujours à jour : chaque ouverture charge la dernière version.</div></div>`};return}
+  if(!U)return;
   U.notifyAppReady().catch(()=>{});
   try{U.addListener('download',d=>{if(MAJ.etat==='dl'){MAJ.pct=Math.round(d.percent||0);majBar()}})}catch(_){}
   setTimeout(()=>majVerif(),4000);

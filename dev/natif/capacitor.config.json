@@ -3,7 +3,12 @@
   "appName": "Younity",
   "webDir": "www",
   "server": {
-    "androidScheme": "https"
+    "url": "https://kngpa.github.io/Younity-/",
+    "androidScheme": "https",
+    "allowNavigation": [
+      "kngpa.github.io"
+    ],
+    "errorPath": "hors-ligne.html"
   },
   "android": {
     "backgroundColor": "#135C2E"
@@ -22,14 +27,6 @@
       "style": "LIGHT",
       "backgroundColor": "#FFFFFF",
       "overlaysWebView": false
-    },
-    "CapacitorUpdater": {
-      "autoUpdate": false,
-      "appReadyTimeout": 15000,
-      "resetWhenUpdate": true,
-      "version": "2.1.0",
-      "autoDeleteFailed": true,
-      "autoDeletePrevious": true
     }
   }
 }
