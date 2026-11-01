@@ -90,4 +90,7 @@ function majAuto(){const U=PL('CapacitorUpdater');if(!U)return;
   setTimeout(()=>majVerif(),4000);
   PL('App').addListener('appStateChange',s=>{if(s.isActive)majVerif()});
   /* Version affichée dans Mon profil, avec un bouton pour vérifier tout de suite */
-  const vp=vProfil;vProfil=function(p){return vp(p)+`<div class="card mt" style="display:flex;align-items:center;gap:12px"><div style="flex:1"><div class="name" style="font-size:13.5px">Younity ${esc(window.YV)}</div><div class="muted">Les mises à jour s'installent toutes seules.</div></div><button class="btn sec sm" data-act="majCheck"><i data-lucide="refresh-cw" class="i i-sm"></i>Vérifier</button></div>`}}
+  const vp=vProfil;vProfil=function(p){return vp(p)+`<div class="card mt" style="display:flex;align-items:center;gap:12px"><div style="flex:1"><div class="name" style="font-size:13.5px">Younity ${esc(window.YV)} · application Android</div><div class="muted">Les mises à jour s'installent toutes seules.</div></div><button class="btn sec sm" data-act="majCheck"><i data-lucide="refresh-cw" class="i i-sm"></i>Vérifier</button></div>`}}
+
+/* Version web (navigateur / ancienne appli Chrome) : on l'indique dans Mon profil */
+if(!NATIF){const vpw=vProfil;vProfil=function(p){return vpw(p)+`<div class="card mt"><div class="name" style="font-size:13.5px">Younity ${esc(window.YV)} · version navigateur</div><div class="muted mb">Tu utilises Younity dans le navigateur (Chrome). Pour l'application Android avec ses propres notifications, installe-la :</div><a class="btn sec sm" href="https://kngpa.github.io/android" target="_blank" rel="noopener"><i data-lucide="download" class="i i-sm"></i>Installer l'application Android</a></div>`}}
