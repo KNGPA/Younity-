@@ -420,6 +420,7 @@ body.app.tablette .m-body .grid.g-stack{grid-template-columns:1fr!important}
 <script src="vendor/supabase.js"></script><script src="vendor/lucide.min.js"></script><script src="vendor/xlsx.full.min.js" defer></script><script src="vendor/jspdf.umd.min.js" defer></script>
 </head><body class="app">
 <div id="spWrap" style="position:fixed;inset:0;z-index:9999"><div class="splash"><div class="sp-glow"></div><svg class="sp-logo" viewBox="0 0 120 120" width="132" height="132"><g class="sp-fig" style="--r:0deg;animation-delay:0.15s"><circle cx="60" cy="14" r="9.5" fill="#fff"/><path d="M41.62 41.62 A26 26 0 0 1 78.38 41.62" fill="none" stroke="#fff" stroke-width="10"/></g><g class="sp-fig" style="--r:90deg;animation-delay:0.3s"><circle cx="60" cy="14" r="9.5" fill="#fff"/><path d="M41.62 41.62 A26 26 0 0 1 78.38 41.62" fill="none" stroke="#fff" stroke-width="10"/></g><g class="sp-fig" style="--r:180deg;animation-delay:0.45s"><circle cx="60" cy="14" r="9.5" fill="#fff"/><path d="M41.62 41.62 A26 26 0 0 1 78.38 41.62" fill="none" stroke="#fff" stroke-width="10"/></g><g class="sp-fig" style="--r:270deg;animation-delay:0.6s"><circle cx="60" cy="14" r="9.5" fill="#fff"/><path d="M41.62 41.62 A26 26 0 0 1 78.38 41.62" fill="none" stroke="#fff" stroke-width="10"/></g><path class="sp-core" d="M51 48 L60 60 L69 48 M60 60 L60 72" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="sp-name"><span style="animation-delay:1.25s">Y</span><span style="animation-delay:1.31s">o</span><span style="animation-delay:1.37s">u</span><span style="animation-delay:1.43s">n</span><span style="animation-delay:1.49s">i</span><span style="animation-delay:1.55s">t</span><span style="animation-delay:1.61s">y</span></div><div class="sp-tag">Gestion des jeunes Harvest</div><div class="sp-bar"><i></i></div></div></div>
+<script>try{Capacitor.Plugins.SplashScreen.hide({fadeOutDuration:250})}catch(e){}</script>
 <div class="stage" id="stage"></div>
 <div class="modal-bg" id="modalBg"><div class="modal" id="modal"></div></div>
 <div class="toast" id="toast"></div>
@@ -2465,7 +2466,7 @@ function vProfil(p){const h=vProfil0(p);const i=h.indexOf('<div class="card mb">
 /* toucher une notification ouvre la liste des notifications */
 if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.younity==='notifications'){const p=PANES[0];if(p&&p.session&&!p.session.mustChange){sync(true).then(()=>{API.openNotifs(p)})}}});
 
-window.YV='2.2.3';showSplash=function(){};const SP_T0=Date.now();function hideSplash(){const w=document.getElementById('spWrap');if(!w||w.dataset.out)return;w.dataset.out=1;const d=Math.max(0,2200-(Date.now()-SP_T0));setTimeout(()=>{w.firstElementChild&&w.firstElementChild.classList.add('out');setTimeout(()=>w.remove(),600)},d)}setTimeout(hideSplash,20000);
+window.YV='2.3.0';showSplash=function(){};const SP_T0=Date.now();function hideSplash(){const w=document.getElementById('spWrap');if(!w||w.dataset.out)return;w.dataset.out=1;const d=Math.max(0,3000-(Date.now()-SP_T0));setTimeout(()=>{w.firstElementChild&&w.firstElementChild.classList.add('out');setTimeout(()=>w.remove(),600)},d)}setTimeout(hideSplash,20000);
 /* ================== APPLICATION NATIVE (Android, Capacitor) ================== */
 const NATIF=!!(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform());
 function PL(n){try{return(Capacitor.Plugins&&Capacitor.Plugins[n])||Capacitor.registerPlugin(n)}catch(e){return null}}
@@ -2480,6 +2481,8 @@ DL={save:async({filename,data})=>{if(NATIF)return natSave(data,filename);
 
 if(NATIF){
   document.documentElement.classList.add('natif');
+  /* l'écran natif (icône) laisse la place directement à l'animation du logo : pas d'écran vert vide entre les deux */
+  try{PL('SplashScreen').hide({fadeOutDuration:250})}catch(_){}
   /* Reçu : en natif, la feuille de partage propose directement WhatsApp avec le PDF joint */
   const ra0=receiptAction;receiptAction=async function(kind,id){if(kind!=='share')return ra0(kind,id);
     try{toast('Préparation du PDF…');const r=await receiptPdf(id);const text=`Bonjour ${prenomOf(r.m)}, voici ton reçu ${r.num} (${r.c.nom} : ${fmt(r.x.montant)}). Merci !`;

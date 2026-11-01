@@ -12,6 +12,8 @@ DL={save:async({filename,data})=>{if(NATIF)return natSave(data,filename);
 
 if(NATIF){
   document.documentElement.classList.add('natif');
+  /* l'écran natif (icône) laisse la place directement à l'animation du logo : pas d'écran vert vide entre les deux */
+  try{PL('SplashScreen').hide({fadeOutDuration:250})}catch(_){}
   /* Reçu : en natif, la feuille de partage propose directement WhatsApp avec le PDF joint */
   const ra0=receiptAction;receiptAction=async function(kind,id){if(kind!=='share')return ra0(kind,id);
     try{toast('Préparation du PDF…');const r=await receiptPdf(id);const text=`Bonjour ${prenomOf(r.m)}, voici ton reçu ${r.num} (${r.c.nom} : ${fmt(r.x.montant)}). Merci !`;
