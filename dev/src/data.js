@@ -49,7 +49,7 @@ async function loadAll(){
   const roleNom=id=>(D.roles.find(r=>r.id===id)||{}).nom||'';
   D.accounts=comptes.map(c=>({id:I(c.user_id),uid:c.user_id,memberId:I(c.membre_id),roleId:c.role_id,actif:c.actif,motif:c.motif_blocage||'',mustChange:c.doit_changer_mdp,derniere:c.derniere_connexion,creeLe:c.cree_le,prefs:c.prefs||{}}));
   const nameOf=u=>{if(!u)return'';const m=D.members.find(x=>x.uuid===u);if(!m)return'Bureau';const a=D.accounts.find(x=>x.memberId===m.id);const r=a&&a.roleId!=='membre'?` (${a.roleId==='president'?'Président':roleNom(a.roleId)})`:'';return titleCase(fullName(m))+r};
-  D.campaigns=camps.map(c=>({id:I(c.id),uuid:c.id,nom:c.nom,nbMois:c.nb_mois,debut:c.debut.slice(0,7),statut:c.statut==='en_cours'?'En cours':'Clôturée',creePar:nameOf(c.cree_par),creeLe:c.cree_le,
+  D.campaigns=camps.map(c=>({id:I(c.id),uuid:c.id,nom:c.nom,nbMois:c.nb_mois,debut:c.debut.slice(0,7),debutJ:c.debut,fin:c.fin||null,periode:c.periode||'mois',statut:c.statut==='en_cours'?'En cours':'Clôturée',creePar:nameOf(c.cree_par),creeLe:c.cree_le,
     lignes:lignes.filter(l=>l.campagne_id===c.id).map(l=>({memberId:I(l.membre_id),montant:l.montant}))}));
   PAYU=new Map();
   D.payments=pays.map(x=>{PAYU.set(x.numero,x.id);return{id:x.numero,uuid:x.id,campagneId:I(x.campagne_id),memberId:I(x.membre_id),montant:x.montant,date:x.date_paiement,moyen:x.moyen,ref:x.reference||'',note:'',
@@ -258,12 +258,12 @@ API.toggleOp=async(p,d)=>{const ops=Object.assign({},DB.settings.operateurs,{[d.
 API.payGo=async()=>{toast('Le paiement Mobile Money sera disponible dès que les opérateurs seront branchés. En attendant, paie auprès de la trésorière.');return'nosync'};
 
 /* campagnes */
-API.confirmLaunch=async()=>{const P=PENDING;if(!P)return'nosync';const d=new Date();
-  const c=await must(sb.from('campagnes').insert({nom:P.nom,nb_mois:P.n,debut:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`,cree_par:ME.membre_id}).select().single());
+API.confirmLaunch=async()=>{const P=PENDING;if(!P)return'nosync';
+  const c=await must(sb.from('campagnes').insert({nom:P.nom,nb_mois:P.n,debut:P.deb,fin:P.fin,periode:P.per,cree_par:ME.membre_id}).select().single());
   if(P.lignes.length)await must(sb.from('campagne_lignes').insert(P.lignes.map(l=>({campagne_id:c.id,membre_id:U(l.memberId),montant:l.montant}))));
   PENDING=null;closeModal();const p=pane(P.pane);await sync();p.sub={camp:I(c.id)};renderPane(p);toast('Campagne lancée !');return'nosync'};
 API.confirmSave=async()=>{const P=PENDING;if(!P)return'nosync';const c=camp(P.cid);
-  await must(sb.from('campagnes').update({nom:P.nom,nb_mois:P.n}).eq('id',c.uuid));
+  await must(sb.from('campagnes').update({nom:P.nom,nb_mois:P.n,debut:P.deb,fin:P.fin,periode:P.per}).eq('id',c.uuid));
   const newMap=new Map(P.lignes.map(l=>[l.memberId,l.montant]));
   for(const l of c.lignes)if(!newMap.has(l.memberId))await must(sb.from('campagne_lignes').delete().eq('campagne_id',c.uuid).eq('membre_id',U(l.memberId)));
   const up=P.lignes.filter(l=>P.oldMap.get(l.memberId)!==l.montant).map(l=>({campagne_id:c.uuid,membre_id:U(l.memberId),montant:l.montant}));

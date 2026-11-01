@@ -468,7 +468,7 @@ function seed(){
   db.roles=[
     {id:'president',nom:'Président (super admin)',systeme:true,perms:PERMS.map(p=>p[0])},
     {id:'commissaire',nom:'Commissaire aux comptes',perms:['membres_voir','campagnes_voir','campagnes_lancer','journal','exports']},
-    {id:'tresorier',nom:'Trésorier(e)',perms:['membres_voir','campagnes_voir','paiements_valider','relances','exports']},
+    {id:'tresorier',nom:'Trésorier(e)',perms:['membres_voir','campagnes_voir','campagnes_lancer','paiements_valider','relances','exports']},
     {id:'secretaire',nom:'Secrétaire',perms:['membres_voir','campagnes_voir','relances','exports','suivi_taches']},
     {id:'organisateur',nom:'Organisateur',perms:['membres_voir','evenements_gerer','exports']},
     {id:'membre',nom:'Membre',systeme:true,perms:[]}];
@@ -481,7 +481,7 @@ function seed(){
     const role=/pr[ée]sident/i.test(m.fonction)?'president':/tr[ée]sori/i.test(m.fonction)?'tresorier':/secr[ée]taire/i.test(m.fonction)?'secretaire':/mobilisation/i.test(m.fonction)?'organisateur':'membre';
     db.accounts.push({id:id(),memberId:m.id,roleId:role,pwd:genPwd(),actif:true,mustChange:true,creeLe:'2026-08-01T09:00:00',derniere:null})});
   const presName='Paul-Andre Koffi (Président)',tresName='Koffi Danielle (Trésorier(e))';
-  const mk=(nom,nbMois,debut,lignes,statut)=>{const c={id:id(),nom,nbMois,debut,statut,creePar:presName,creeLe:debut+'-01T09:00:00',lignes};db.campaigns.push(c);
+  const mk=(nom,nbMois,debut,lignes,statut)=>{const c={id:id(),nom,nbMois,debut,debutJ:debut+'-01',fin:(()=>{const[y,m]=debut.split('-').map(Number);const d=new Date(y,m-1+nbMois,0);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')})(),periode:'mois',statut,creePar:presName,creeLe:debut+'-01T09:00:00',lignes};db.campaigns.push(c);
     db.journal.push({t:c.creeLe,auteur:presName,action:'Campagne lancée',detail:`« ${nom} » — ${nbMois} mois, ${lignes.length} membres, ${fmt(lignes.reduce((a,l)=>a+l.montant,0))}`});return c};
   const retraite=mk('Retraite spirituelle 2026',3,'2026-03',db.members.slice(0,18).map(m=>({memberId:m.id,montant:9000})),'Clôturée');
   const moisson=mk('Moisson 2026',10,'2026-08',db.members.map((m,i)=>({memberId:m.id,montant:FILE_ROWS[i][2]})),'En cours');
@@ -534,18 +534,32 @@ function age(d){if(!d)return null;const b=new Date(d),n=new Date();let a=n.getFu
 function camp(id){return DB.campaigns.find(c=>c.id===id)}
 function schedule(montant,n){const base=Math.floor(montant/n/5)*5;const a=Array(n).fill(base);a[n-1]=montant-base*(n-1);return a}
 const MCOURT=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
-function moisNom(c,i){const [y,m]=c.debut.split('-').map(Number);const d=new Date(y,m-1+i,1);return MCOURT[d.getMonth()]+(d.getFullYear()!==new Date().getFullYear()?' '+String(d.getFullYear()).slice(2):'')}
-function moCell(s,mo,curOn=true){return `<div class="mo ${mo.state} ${curOn&&mo.i===s.cur-1?'cur':''}">M${mo.i+1}<span class="mo-m">${moisNom(s.c,mo.i)}</span><b>${mo.state==='paye'?'✓':mo.state==='avenir'?fmtN(mo.due):fmtN(mo.paid)}</b>${mo.state==='partiel'||mo.state==='du'?`<small>sur ${fmtN(mo.due)}</small>`:''}</div>`}
+const PER={jour:['jour','Jour','J','jours'],semaine:['semaine','Semaine','S','semaines'],mois:['mois','Mois','M','mois'],unique:['fois','Échéance','','']};
+function perK(c){return(c&&PER[c.periode])?c.periode:'mois'}
+function perU(c){return PER[perK(c)][0]}
+function perL(c){return PER[perK(c)][1]}
+function perA(c){return PER[perK(c)][2]}
+function nbPer(c,n){n=n??c.nbMois;const k=perK(c);if(k==='unique')return'1 versement unique';return `${n} ${n>1?PER[k][3]:PER[k][0]}`}
+function perPos(c,cur){return perK(c)==='unique'?`Échéance le ${fdate(campFin(c)).slice(0,5)}`:`${perL(c)} ${cur}/${c.nbMois}`}
+function perAuto(deb,fin){if(!deb||!fin)return'mois';const d=Math.round((dPar(fin)-dPar(deb))/864e5)+1;return d<=1?'unique':d<=14?'jour':d<=62?'semaine':'mois'}
+function dPar(s){const[y,m,d]=String(s).split('-').map(Number);return new Date(y,m-1,d||1)}
+function dIso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function nPeriodes(deb,fin,per){if(!deb||!fin)return 0;const a=dPar(deb),b=dPar(fin);if(b<a)return 0;if(per==='unique')return 1;if(per==='jour')return Math.round((b-a)/864e5)+1;if(per==='semaine')return Math.ceil((Math.round((b-a)/864e5)+1)/7);return(b.getFullYear()-a.getFullYear())*12+b.getMonth()-a.getMonth()+1}
+function campFin(c){if(c.fin)return c.fin;const[y,m]=c.debut.split('-').map(Number);return dIso(new Date(y,m-1+c.nbMois,0))}
+function delaiDepasse(c){return!!(c&&c.fin&&c.statut==='En cours'&&today()>c.fin)}
+function delaiChip(c){return delaiDepasse(c)?'<span class="chip late" style="font-size:10.5px">Délai dépassé</span>':''}
+function moisNom(c,i){if(c.periode==='unique')return'au '+fdate(campFin(c)).slice(0,5);if(c.periode==='jour'){const d=dPar(c.debutJ);d.setDate(d.getDate()+i);return d.getDate()+' '+MCOURT[d.getMonth()]}if(c.periode==='semaine'){const d=dPar(c.debutJ||c.debut+'-01');d.setDate(d.getDate()+7*i);return d.getDate()+' '+MCOURT[d.getMonth()]}const [y,m]=c.debut.split('-').map(Number);const d=new Date(y,m-1+i,1);return MCOURT[d.getMonth()]+(d.getFullYear()!==new Date().getFullYear()?' '+String(d.getFullYear()).slice(2):'')}
+function moCell(s,mo,curOn=true){return `<div class="mo ${mo.state} ${curOn&&mo.i===s.cur-1?'cur':''}">${perA(s.c)}${mo.i+1}<span class="mo-m">${moisNom(s.c,mo.i)}</span><b>${mo.state==='paye'?'✓':mo.state==='avenir'?fmtN(mo.due):fmtN(mo.paid)}</b>${mo.state==='partiel'||mo.state==='du'?`<small>sur ${fmtN(mo.due)}</small>`:''}</div>`}
 function moisDetail(s){const L=s.months.filter(mo=>mo.i<s.cur&&mo.paid<mo.due);
-  return `<div class="mo-help">Les mois sont comptés à partir du lancement (Mois 1 = ${moisNom(s.c,0)}). Chaque paiement complète d'abord le mois le plus ancien non soldé.</div>`+
-  (L.length?`<div class="mt">${L.map(mo=>`<div class="kv"><span>Mois ${mo.i+1} · ${moisNom(s.c,mo.i)}${mo.i===s.cur-1?' (en cours)':''}</span><b style="color:var(--red)">${fmtN(mo.paid)} / ${fmtN(mo.due)} · manque ${fmtN(mo.due-mo.paid)}</b></div>`).join('')}</div>`:(s.cur?`<div class="info mt" style="font-size:12.5px">Tous les mois jusqu'à ${moisNom(s.c,s.cur-1)} sont soldés ✓</div>`:''))}
+  return `<div class="mo-help">${s.c.periode==='unique'?`Un seul versement, à faire au plus tard le ${fdate(campFin(s.c))}.`:s.c.periode==='jour'?`Un versement par jour à partir du ${fdate(s.c.debutJ)} (Jour 1).`:s.c.periode==='semaine'?`Les semaines sont comptées à partir du ${fdate(s.c.debutJ)} (Semaine 1).`:`Les mois sont comptés à partir du lancement (Mois 1 = ${moisNom(s.c,0)}).`} Fin de la campagne : <b>${fdate(campFin(s.c))}</b>. ${s.c.periode==='unique'?'On peut payer en plusieurs fois avant cette date.':'Chaque paiement complète d\'abord la période la plus ancienne non soldée.'}</div>${delaiDepasse(s.c)?`<div class="info red mt" style="font-size:12.5px"><b>Délai dépassé</b> depuis le ${fdate(s.c.fin)}. Les paiements restent possibles : la trésorière peut toujours les valider.</div>`:''}`+
+  (L.length?`<div class="mt">${L.map(mo=>`<div class="kv"><span>${perL(s.c)} ${mo.i+1} · ${moisNom(s.c,mo.i)}${mo.i===s.cur-1?' (en cours)':''}</span><b style="color:var(--red)">${fmtN(mo.paid)} / ${fmtN(mo.due)} · manque ${fmtN(mo.due-mo.paid)}</b></div>`).join('')}</div>`:(s.cur?`<div class="info mt" style="font-size:12.5px">Tout est soldé jusqu'à ${s.c.periode==='semaine'?'la semaine du':''} ${moisNom(s.c,s.cur-1)} ✓</div>`:''))}
 function simulatePay(s,amt){let r=amt;const out=[];for(const mo of s.months){const need=mo.due-mo.paid;if(need<=0)continue;if(r<=0)break;const add=Math.min(need,r);r-=add;out.push({mo,add,paid:mo.paid+add})}
   const verse=s.verse+amt;const dueToDate=s.months.slice(0,s.cur).reduce((a,m)=>a+m.due,0);return{out,surplus:Math.max(0,r),retard:Math.max(0,dueToDate-verse),reste:Math.max(0,s.total-verse)}}
 function previewHtml(s,amt){if(!amt)return'<div class="muted">Saisis un montant pour voir ce qu\'il couvre.</div>';const r=simulatePay(s,amt);
   return `<div class="muted" style="font-weight:700;margin-bottom:4px">CE PAIEMENT VA COUVRIR</div>${r.out.map(o=>`<div class="kv"><span>Mois ${o.mo.i+1} · ${moisNom(s.c,o.mo.i)}</span><b style="color:${o.paid>=o.mo.due?'var(--ok)':'var(--amber)'}">+${fmtN(o.add)} → ${o.paid>=o.mo.due?'soldé ✓':`${fmtN(o.paid)} / ${fmtN(o.mo.due)} (manque ${fmtN(o.mo.due-o.paid)})`}</b></div>`).join('')}
   ${r.surplus?`<div class="kv"><span>Au-delà du total</span><b>${fmtN(r.surplus)}</b></div>`:''}
-  <div class="info mt" style="font-size:12.5px;${r.retard?'background:var(--red-soft);color:#7d2020':''}">${r.reste===0?'Après ce paiement : cotisation <b>entièrement soldée</b> 🎉':r.retard?`Après ce paiement : encore <b>${fmt(r.retard)}</b> à payer pour être à jour ce mois-ci.`:'Après ce paiement : <b>à jour</b> pour ce mois 👍'} Reste total : ${fmt(r.reste)}.</div>`}
-function curIdx(c){const [y,m]=c.debut.split('-').map(Number);const d=new Date();const v=(d.getFullYear()-y)*12+(d.getMonth()+1-m)+1;return Math.max(0,Math.min(c.nbMois,v))}
+  <div class="info mt" style="font-size:12.5px;${r.retard?'background:var(--red-soft);color:#7d2020':''}">${r.reste===0?'Après ce paiement : cotisation <b>entièrement soldée</b> 🎉':r.retard?`Après ce paiement : encore <b>${fmt(r.retard)}</b> à payer pour être à jour.`:'Après ce paiement : <b>à jour</b> pour ce mois 👍'} Reste total : ${fmt(r.reste)}.</div>`}
+function curIdx(c){if(c.periode==='unique')return today()>=campFin(c)?1:0;if(c.periode==='jour'){const a=dPar(c.debutJ),n=new Date();n.setHours(0,0,0,0);return Math.max(0,Math.min(c.nbMois,Math.round((n-a)/864e5)+1))}if(c.periode==='semaine'){const a=dPar(c.debutJ||c.debut+'-01'),n=new Date();n.setHours(0,0,0,0);return Math.max(0,Math.min(c.nbMois,Math.floor((n-a)/864e5/7)+1))}const [y,m]=c.debut.split('-').map(Number);const d=new Date();const v=(d.getFullYear()-y)*12+(d.getMonth()+1-m)+1;return Math.max(0,Math.min(c.nbMois,v))}
 function situation(cid,mid){
   const c=camp(cid);const line=c&&c.lignes.find(l=>l.memberId===mid);if(!line)return null;
   const sch=schedule(line.montant,c.nbMois);const cur=c.statut==='Clôturée'?c.nbMois:curIdx(c);
@@ -786,7 +800,7 @@ function pills(p,key,opts,def){const v=p.f[key]??def;return opts.map(([val,label
 
 /* ---- Accueil ---- */
 function campCard(c,p,compact){const s=campStats(c);return `<div class="card ${compact?'':'mb'}" style="cursor:pointer" data-act="opencamp" data-id="${c.id}">
-  <div class="row between"><div style="min-width:0"><div class="name ellip" style="font-size:15px">${esc(c.nom)}</div><div class="muted">${c.lignes.length} membres · ${c.nbMois} mois${c.statut==='En cours'?` · Mois ${s.cur}/${c.nbMois}`:''}</div></div><span class="chip ${c.statut==='En cours'?'ok':'mut'}">${c.statut==='En cours'?'<i data-lucide="radio" class="i i-sm"></i>':''}${c.statut}</span></div>
+  <div class="row between"><div style="min-width:0"><div class="name ellip" style="font-size:15px">${esc(c.nom)} ${delaiChip(c)}</div><div class="muted">${c.lignes.length} membres · ${nbPer(c)}${c.statut==='En cours'?` · ${perPos(c,s.cur)}`:''}</div></div><span class="chip ${c.statut==='En cours'?'ok':'mut'}">${c.statut==='En cours'?'<i data-lucide="radio" class="i i-sm"></i>':''}${c.statut}</span></div>
   <div class="row between mt" style="font-size:12.5px"><span><b>${fmt(s.verse)}</b> / ${fmt(s.total)}</span><b style="color:var(--green)">${(s.taux*100).toFixed(0)} %</b></div>
   <div class="bar" style="margin-top:6px"><i style="width:${(s.taux*100).toFixed(1)}%"></i></div>
   <div class="row mt" style="gap:6px;flex-wrap:wrap"><span class="chip ok">${s.nbSolde} soldés</span><span class="chip late">${s.nbRetard} en retard</span><span class="chip mut">${c.lignes.length-s.nbSolde-s.nbRetard} à jour</span></div></div>`}
@@ -798,13 +812,13 @@ function adminHero(p,ec){
   if(!ec.length)return `<div class="card empty mb">Aucune campagne en cours.${can(p,'campagnes_lancer')?'<br><button class="btn mt" data-act="newcamp">Lancer une campagne</button>':''}</div>`;
   const c=ec[0],s=campStats(c);
   return `<div class="hero big-hero mb" data-act="opencamp" data-id="${c.id}" style="cursor:pointer">
-    <div class="row between"><div class="l">Campagne principale · Mois ${s.cur}/${c.nbMois}</div><span class="chip" style="background:rgba(255,255,255,.16);color:#fff"><i data-lucide="radio" class="i i-sm"></i>En cours</span></div>
-    <div class="hero-name">${esc(c.nom)}</div>
+    <div class="row between"><div class="l">Campagne principale · ${perPos(c,s.cur)}</div><span class="chip" style="background:rgba(255,255,255,.16);color:#fff"><i data-lucide="radio" class="i i-sm"></i>En cours</span></div>
+    <div class="hero-name">${esc(c.nom)}</div>${delaiDepasse(c)?`<div style="margin:-2px 0 6px"><span class="chip" style="background:#fde2e2;color:#a32020">Délai dépassé · fin le ${fdate(c.fin)}</span></div>`:''}
     <div class="big">${fmt(s.verse)}</div><div class="bar"><i style="width:${(s.taux*100).toFixed(1)}%"></i></div>
     <div class="split"><div>Attendu<b>${fmt(s.total)}</b></div><div style="text-align:right">Recouvré<b>${(s.taux*100).toFixed(0)} %</b></div></div>
     <div class="hero-pills"><span>${c.lignes.length} membres</span><span>${s.nbSolde} soldés</span><span>${s.nbRetard} en retard</span><span>${c.nbMois} mois</span></div></div>
   ${ec.length>1?`<div class="row between" style="margin:2px 2px 8px"><div class="name" style="font-size:14px">Autres campagnes en cours</div><button class="link" data-act="tab" data-tab="campagnes">Toutes (${DB.campaigns.length}) →</button></div>
-  <div class="minis mb">${ec.slice(1,3).map(x=>{const t=campStats(x);return miniCard(x,t.taux,t.verse,t.reste,`Mois ${t.cur}/${x.nbMois} · ${t.nbRetard} en retard`,`data-act="opencamp" data-id="${x.id}"`)}).join('')}</div>`
+  <div class="minis mb">${ec.slice(1,3).map(x=>{const t=campStats(x);return miniCard(x,t.taux,t.verse,t.reste,`${perPos(x,t.cur)} · ${t.nbRetard} en retard`,`data-act="opencamp" data-id="${x.id}"`)}).join('')}</div>`
   :`<div class="row" style="justify-content:flex-end;margin:-4px 2px 12px"><button class="link" data-act="tab" data-tab="campagnes">Toutes les campagnes (${DB.campaigns.length}) →</button></div>`}`;
 }
 function vDashboard(p){
@@ -849,7 +863,7 @@ function vStats(p){
     h+=`<div class="field"><label>Campagne</label><select class="inp" data-fk="sc">${camps.map(x=>`<option value="${x.id}" ${x.id===c.id?'selected':''}>${esc(x.nom)}${x.statut!=='En cours'?' (clôturée)':''}</option>`).join('')}</select></div>
     <div class="kpis"><div class="kpi"><div class="l">Attendu</div><div class="v">${fmt(s.total)}</div></div><div class="kpi"><div class="l">Encaissé</div><div class="v" style="color:var(--green)">${fmt(s.verse)}</div><div class="bar" style="margin-top:8px"><i style="width:${(s.taux*100).toFixed(1)}%"></i></div></div><div class="kpi"><div class="l">Reste</div><div class="v">${fmt(s.reste)}</div></div><div class="kpi"><div class="l">Recouvrement</div><div class="v">${(s.taux*100).toFixed(1)} %</div></div></div>
     <div class="grid" style="grid-template-columns:${p.mode==='web'?'1.5fr 1fr':'1fr'}">
-      <div class="card"><h3><i data-lucide="bar-chart-3" class="i"></i>Encaissé par mois de cotisation<span class="r">gris = attendu</span></h3>${monthChart(s.perMonth.map((m,i)=>({lab:'M'+(i+1),att:m.att,enc:m.enc})),s.cur-1)}<div class="muted" style="margin-top:6px">Mois 1 = ${moisNom(c,0)} (lancement)</div></div>
+      <div class="card"><h3><i data-lucide="bar-chart-3" class="i"></i>Encaissé par ${perU(c)} de cotisation<span class="r">gris = attendu</span></h3>${monthChart(s.perMonth.map((m,i)=>({lab:perA(c)+(i+1),att:m.att,enc:m.enc})),s.cur-1)}<div class="muted" style="margin-top:6px">Mois 1 = ${moisNom(c,0)} (lancement)</div></div>
       <div class="card"><h3><i data-lucide="pie-chart" class="i"></i>Statut des membres</h3>${barRows([['Soldés',all.filter(x=>x.statut==='Soldé').length],['À jour',all.filter(x=>x.statut==='À jour').length],['En retard',all.filter(x=>x.statut==='En retard').length],['Rien payé',all.filter(x=>!x.verse).length]],null)}<div class="muted">Arriérés totaux : <b style="color:var(--red)">${fmt(s.retard)}</b></div></div>
     </div>
     <div class="grid mt" style="grid-template-columns:${p.mode==='web'?'1fr 1fr':'1fr'}">
@@ -913,7 +927,7 @@ function vPayer(p){
     <button class="btn block" data-act="submitPay"><i data-lucide="check-circle-2" class="i"></i>Valider le paiement</button>
     <div class="muted" style="margin-top:8px;text-align:center">Le montant est réparti automatiquement sur les mois, en commençant par le plus ancien.</div></div>`;
   const lateN=c.lignes.filter(l=>situation(c.id,l.memberId).retard>0).length;
-  const relBox=can(p,'relances')&&lateN?`<div class="card mb row between" style="background:var(--red-soft);border-color:#f3cccc"><div><div class="name" style="color:#7d2020">${lateN} membre${lateN>1?'s':''} en retard ce mois-ci</div><div class="muted">${esc(c.nom)} · Mois ${curIdx(c)}/${c.nbMois}</div></div><button class="btn danger sm" data-act="openRel" data-id="${c.id}"><i data-lucide="megaphone" class="i i-sm"></i>Relancer</button></div>`:'';
+  const relBox=can(p,'relances')&&lateN?`<div class="card mb row between" style="background:var(--red-soft);border-color:#f3cccc"><div><div class="name" style="color:#7d2020">${lateN} membre${lateN>1?'s':''} en retard ce mois-ci</div><div class="muted">${esc(c.nom)} · ${perPos(c,curIdx(c))}</div></div><button class="btn danger sm" data-act="openRel" data-id="${c.id}"><i data-lucide="megaphone" class="i i-sm"></i>Relancer</button></div>`:'';
   const hist=`<div class="${p.mode==='mobile'?'mt':''}"><div class="name mb" style="font-size:15px">Historique des paiements</div>${payListBlock(p)}</div>`;
   return wTitle(p,'Valider un paiement','Enregistre ce qu\'un membre t\'a remis : la situation de tout le monde se met à jour.')+
    (typeof qrBar==='function'?qrBar(p):'')+relBox+(p.mode==='web'?`<div class="grid" style="grid-template-columns:1fr 1.2fr;align-items:start">${form}${hist}</div>`:form+hist);
@@ -923,8 +937,8 @@ function vPaiementsList(p){
 }
 
 /* ---- Relances (secrétaire) ---- */
-const REL_TPL='Bonjour {prenom}, petit rappel pour la cotisation « {campagne} » : nous sommes au mois {mois}. Pour être à jour ce mois-ci, tu dois payer {retard} (reste total : {reste}). Tu peux payer en espèces ou par Mobile Money auprès de la trésorière. Merci !';
-function relMsg(tpl,m,s){return tpl.replace(/\{prenom\}/g,prenomOf(m)).replace(/\{nom\}/g,titleCase(fullName(m))).replace(/\{retard\}/g,fmt(s.retard||s.reste)).replace(/\{reste\}/g,fmt(s.reste)).replace(/\{campagne\}/g,s.c.nom).replace(/\{verse\}/g,fmt(s.verse)).replace(/\{mois\}/g,`${s.cur} sur ${s.c.nbMois}`)}
+const REL_TPL='Bonjour {prenom}, petit rappel pour la cotisation « {campagne} » : nous sommes au {mois}. Pour être à jour, tu dois payer {retard} (reste total : {reste}). Tu peux payer en espèces ou par Mobile Money auprès de la trésorière. Merci !';
+function relMsg(tpl,m,s){return tpl.replace(/\{prenom\}/g,prenomOf(m)).replace(/\{nom\}/g,titleCase(fullName(m))).replace(/\{retard\}/g,fmt(s.retard||s.reste)).replace(/\{reste\}/g,fmt(s.reste)).replace(/\{campagne\}/g,s.c.nom).replace(/\{verse\}/g,fmt(s.verse)).replace(/\{mois\}/g,`${perU(s.c)} ${s.cur} sur ${s.c.nbMois}`)+(delaiDepasse(s.c)?` Le délai de la campagne (${fdate(s.c.fin)}) est dépassé, mais tu peux encore payer.`:'')}
 function lastRel(cid,mid){const r=DB.relances.filter(r=>r.campagneId===cid&&r.memberId===mid);return r.length?r[r.length-1].t:null}
 let PAYCTX=null;
 function payable(me){return DB.campaigns.filter(c=>c.statut==='En cours'&&c.lignes.some(l=>l.memberId===me.id)).map(c=>({c,s:situation(c.id,me.id)})).filter(o=>o.s.reste>0)}
@@ -938,7 +952,7 @@ function openPay(p,cid,meth){const me=sMember(p);const L=payable(me);MCTX={pane:
   const def=s.retard||Math.min(s.mensualite,s.reste);PAYCTX={cid:c.id,mid:me.id};
   openModal(`<h2>Payer une cotisation</h2>
   <div class="field mt"><label>Cotisation à payer</label><select class="inp" id="pay-camp">${L.map(x=>`<option value="${x.c.id}" ${x.c.id===c.id?'selected':''}>${esc(x.c.nom)} — reste ${fmtN(x.s.reste)}${x.s.retard?' · retard '+fmtN(x.s.retard):''}</option>`).join('')}</select>
-  <div class="muted" style="margin-top:4px">Mois ${s.cur}/${c.nbMois} (${moisNom(c,Math.max(0,s.cur-1))}) · ${fmt(s.mensualite)}/mois · ${s.retard?`<b style="color:var(--red)">${fmt(s.retard)} pour être à jour</b>`:'à jour'}</div></div>
+  <div class="muted" style="margin-top:4px">${perPos(c,s.cur)} (${moisNom(c,Math.max(0,s.cur-1))}) · ${fmt(s.mensualite)}/${perU(c)} · ${s.retard?`<b style="color:var(--red)">${fmt(s.retard)} pour être à jour</b>`:'à jour'}</div></div>
   <div class="field"><label>Moyen de paiement</label><div class="op-grid" id="pay-ops">${ops.map((k,i)=>`<button class="op-tile ${i===0?'on':''}" data-act="pickOp" data-v="${k}">${opLogo(k,40)}<span>${k}</span></button>`).join('')}</div></div>
   <div class="field"><label>Montant (FCFA) — tu peux payer moins ou plus qu'une mensualité</label><input class="inp big" id="pay-amt" inputmode="numeric" value="${def}"><div class="pills" style="margin-top:4px">${[...new Set([Math.min(s.mensualite,s.reste),s.retard,s.reste].filter(v=>v>0))].map(v=>`<button class="pill" data-act="payAmt" data-v="${v}">${fmtN(v)}${v===s.reste?' (tout)':v===s.retard?' (pour être à jour)':' (1 mois)'}</button>`).join('')}</div></div>
   <div class="receipt mb" id="pay-prev">${previewHtml(s,def)}</div>
@@ -948,7 +962,7 @@ function openPay(p,cid,meth){const me=sMember(p);const L=payable(me);MCTX={pane:
 function updPrev(){if(!PAYCTX)return;const el=document.getElementById('pay-prev'),i=document.getElementById('pay-amt');if(!el||!i)return;el.innerHTML=previewHtml(situation(PAYCTX.cid,PAYCTX.mid),+digits(i.value))}
 function memberSit(p,cid,mid){
   const c=camp(cid),m=member(mid),s=situation(cid,mid);const lr=lastRel(cid,mid);const msg=relMsg(p.f.rtpl||REL_TPL,m,s);
-  openModal(`<div class="row" style="gap:12px"><div class="avatar">${initials(m.nom)}</div><div style="flex:1;min-width:0"><h2 style="margin:0">${esc(fullName(m))}</h2><div class="muted">${esc(c.nom)} · Mois ${s.cur}/${c.nbMois}</div></div>${statutChip(s.statut)}</div>
+  openModal(`<div class="row" style="gap:12px"><div class="avatar">${initials(m.nom)}</div><div style="flex:1;min-width:0"><h2 style="margin:0">${esc(fullName(m))}</h2><div class="muted">${esc(c.nom)} · ${perPos(c,s.cur)}</div></div>${statutChip(s.statut)}</div>
   <div class="receipt mt"><div class="rl"><span class="muted">Cotisation</span><b>${fmt(s.total)}</b></div><div class="rl"><span class="muted">Déjà versé</span><b style="color:var(--green)">${fmt(s.verse)}</b></div><div class="rl"><span class="muted">À payer ce mois-ci pour être à jour</span><b style="color:${s.retard?'var(--red)':'inherit'}">${fmt(s.retard)}</b></div><div class="rl"><span class="muted">Reste total</span><b>${fmt(s.reste)}</b></div>${lr?`<div class="rl"><span class="muted">Dernière relance</span><b>${fdt(lr)}</b></div>`:''}</div>
   <div class="months mt" style="grid-template-columns:repeat(${Math.min(5,c.nbMois)},1fr)">${s.months.map(mo=>moCell(s,mo)).join('')}</div>${moisDetail(s)}
   ${can(p,'relances')&&s.reste>0&&c.statut==='En cours'?`<div class="field mt"><label>Message de relance</label><div class="info" style="font-size:12.5px">${esc(msg)}</div></div>`:''}
@@ -977,7 +991,7 @@ function vRelances(p){
 function vCampagnes(p){
   const f=p.f;const flt=f.cs||'all';
   const L=DB.campaigns.filter(c=>flt==='all'||c.statut===flt).sort((a,b)=>f.ct==='montant'?campTotal(b)-campTotal(a):b.creeLe.localeCompare(a.creeLe));
-  return wTitle(p,'Campagnes de cotisation','Chaque campagne : un nombre de mois et un montant par membre.',can(p,'campagnes_lancer')?`<button class="btn ${sm(p)}" data-act="newcamp"><i data-lucide="plus" class="i"></i>Lancer une campagne</button>`:'')+
+  return wTitle(p,'Campagnes de cotisation','Chaque campagne : une période (du … au …) et un montant par membre.',can(p,'campagnes_lancer')?`<button class="btn ${sm(p)}" data-act="newcamp"><i data-lucide="plus" class="i"></i>Lancer une campagne</button>`:'')+
   `<div class="filters">${pills(p,'cs',[['all','Toutes',DB.campaigns.length],['En cours','En cours',enCours().length],['Clôturée','Clôturées',DB.campaigns.length-enCours().length]],'all')}
    <select class="inp" data-fk="ct"><option value="date">Plus récentes d'abord</option><option value="montant" ${f.ct==='montant'?'selected':''}>Plus gros montant d'abord</option></select></div>
   <div class="grid" style="grid-template-columns:${p.mode==='web'?'1fr 1fr':'1fr'}">${L.map(c=>campCard(c,p,true)).join('')}</div>`;
@@ -995,14 +1009,14 @@ function vCampDetail(p,cid){
   const rows=campRows(p,c);
   const back=p.mode==='web'?`<button class="link mb" data-act="back"><i data-lucide="arrow-left" class="i i-sm"></i>Toutes les campagnes</button>`:'';
   const actions=(can(p,'relances')&&c.statut==='En cours'?`<button class="btn ${sm(p)}" data-act="openRel" data-id="${c.id}"><i data-lucide="megaphone" class="i"></i>Relancer les retards</button>`:'')+(can(p,'exports')?`<button class="btn sec ${sm(p)}" data-act="exportCamp" data-id="${c.id}"><i data-lucide="download" class="i"></i>Excel (liste filtrée)</button>`:'')+(ed?`<button class="btn sec ${sm(p)}" data-act="editcamp" data-id="${c.id}"><i data-lucide="pencil" class="i"></i>Modifier</button>${c.statut==='En cours'?`<button class="btn sec ${sm(p)}" data-act="closeCamp" data-id="${c.id}"><i data-lucide="lock" class="i"></i>Clôturer</button>`:`<button class="btn sec ${sm(p)}" data-act="reopenCamp" data-id="${c.id}"><i data-lucide="unlock" class="i"></i>Rouvrir</button>`}`:'');
-  const kp=`<div class="kpis"><div class="kpi"><div class="l">Attendu</div><div class="v">${fmt(s.total)}</div></div><div class="kpi"><div class="l">Encaissé</div><div class="v" style="color:var(--green)">${fmt(s.verse)}</div></div><div class="kpi"><div class="l">Reste</div><div class="v">${fmt(s.reste)}</div></div><div class="kpi"><div class="l">${c.statut==='En cours'?'Mois en cours':'Statut'}</div><div class="v">${c.statut==='En cours'?s.cur+' / '+c.nbMois:'Clôturée'}</div></div></div>`;
+  const kp=`<div class="kpis"><div class="kpi"><div class="l">Attendu</div><div class="v">${fmt(s.total)}</div></div><div class="kpi"><div class="l">Encaissé</div><div class="v" style="color:var(--green)">${fmt(s.verse)}</div></div><div class="kpi"><div class="l">Reste</div><div class="v">${fmt(s.reste)}</div></div><div class="kpi"><div class="l">${c.statut==='En cours'?(perK(c)==='unique'?'Échéance':perL(c)+' en cours'):'Statut'}</div><div class="v">${c.statut==='En cours'?(perK(c)==='unique'?fdate(campFin(c)):s.cur+' / '+c.nbMois):'Clôturée'}</div></div></div>`;
   const filters=`<div class="filters">${pills(p,'cf',[['all','Tous',all.length],['solde','Soldés',all.filter(x=>x.statut==='Soldé').length],['nonsolde','Non soldés',all.filter(x=>x.statut!=='Soldé').length],['retard','En retard',all.filter(x=>x.retard>0).length],['ajour','À jour',all.filter(x=>x.statut==='À jour').length],['paye','Ont payé',all.filter(x=>x.verse>0).length],['zero','Rien payé',all.filter(x=>!x.verse).length]],'all')}
     <select class="inp" data-fk="co"><option value="nom">Trier : nom</option><option value="reste" ${p.f.co==='reste'?'selected':''}>Trier : reste à payer</option><option value="verse" ${p.f.co==='verse'?'selected':''}>Trier : montant versé</option></select></div>
     <div class="search mb"><i data-lucide="search" class="i"></i><input class="inp" placeholder="Rechercher un membre" data-fk="cq" data-live="1" value="${esc(p.f.cq||'')}"></div>
     <div class="count-line">${rows.length} membre${rows.length>1?'s':''} affiché${rows.length>1?'s':''} · versé ${fmt(rows.reduce((a,o)=>a+o.x.verse,0))} · reste ${fmt(rows.reduce((a,o)=>a+o.x.reste,0))}</div>`;
   const legend=`<div class="legend mb"><span><i style="background:var(--ok-soft);border:1px solid var(--ok)"></i>Payé</span><span><i style="background:var(--amber-soft);border:1px solid var(--amber)"></i>Partiel</span><span><i style="background:var(--red-soft);border:1px solid var(--red)"></i>Dû, non payé</span><span><i style="background:#f0f3f1;border:1px solid #ccc"></i>À venir</span></div>`;
   if(p.mode==='web'){
-    return back+wTitle(p,esc(c.nom),`${c.lignes.length} membres · ${c.nbMois} mois · lancée par ${esc(c.creePar)} · <span class="chip ${c.statut==='En cours'?'ok':'mut'}">${c.statut}</span>`,actions)+kp+filters+legend+
+    return back+wTitle(p,esc(c.nom),`${c.lignes.length} membres · ${nbPer(c)} · du ${fdate(c.debutJ||c.debut+'-01')} au ${fdate(campFin(c))} · lancée par ${esc(c.creePar)} · <span class="chip ${c.statut==='En cours'?'ok':'mut'}">${c.statut}</span> ${delaiChip(c)}`,actions)+kp+filters+legend+
     `<div class="tbl-wrap"><table class="t camp-t"><thead><tr><th>Membre</th><th class="num">Cotisation</th>${Array.from({length:c.nbMois},(_,i)=>`<th style="text-align:center;${i===s.cur-1&&c.statut==='En cours'?'color:var(--gold)':''}">M${i+1}</th>`).join('')}<th class="num">Versé</th><th class="num">Reste</th><th>Statut</th><th></th></tr></thead><tbody>
     ${rows.map(({l,m,x})=>`<tr><td><div class="name">${esc(fullName(m))}</div><div class="muted">${esc(m.fonction)}</div></td><td class="num">${fmtN(l.montant)}</td>
       ${x.months.map(mo=>`<td style="text-align:center;padding:6px 3px"><span class="cell ${mo.state}" title="Mois ${mo.i+1} : ${fmtN(mo.paid)} / ${fmtN(mo.due)}">${mo.state==='avenir'?fmtN(mo.due):mo.state==='paye'?'✓ '+fmtN(mo.paid):fmtN(mo.paid)}</span></td>`).join('')}
@@ -1017,14 +1031,18 @@ function vCampForm(p,cid){
   const back=p.mode==='web'?`<button class="link mb" data-act="back"><i data-lucide="arrow-left" class="i i-sm"></i>Retour</button>`:'';
   const lineOf=mid=>c&&c.lignes.find(l=>l.memberId===mid);
   const paid=mid=>c?DB.payments.filter(x=>x.campagneId===c.id&&x.memberId===mid&&!x.annule).reduce((a,x)=>a+x.montant,0):0;
-  return back+wTitle(p,c?'Modifier la campagne':'Lancer une campagne',c?'Corrige le nom, la durée, les montants ou les membres. Chaque changement est inscrit au journal.':'Tu fixes le nombre de mois et le montant de chacun. L\'application calcule les mensualités.')+
+  return back+wTitle(p,c?'Modifier la campagne':'Lancer une campagne',c?'Corrige le nom, les dates, les montants ou les membres. Chaque changement est inscrit au journal.':'Choisis la date de début et la date de fin : l\'application calcule le nombre de mois (ou de semaines) et ce que chacun doit verser par période.')+
   `${c?`<div class="info gold mb">Les paiements déjà validés sont conservés : l'application les répartit à nouveau sur le nouvel échéancier. Un membre qui a déjà payé ne peut pas être retiré.</div>`:''}
-  <div class="card mb"><div class="${p.mode==='web'?'two':''}" style="${p.mode==='web'?'grid-template-columns:2fr 1fr 1fr':''}">
+  <div class="card mb">
     <div class="field"><label>Nom de la campagne</label><input class="inp" id="nc-nom-${p.id}" value="${esc(c?c.nom:'')}" placeholder="Ex. Moisson 2027, Projet investissement…"></div>
-    <div class="field"><label>Nombre de mois</label><input class="inp" id="nc-mois-${p.id}" type="number" min="1" max="36" value="${c?c.nbMois:10}" data-act-input="ncRecalc"></div>
+    <div class="${p.mode==='web'?'two':''}" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Début</label><input class="inp" type="date" id="nc-deb-${p.id}" value="${c?(c.debutJ||c.debut+'-01'):today()}" data-act-input="ncRecalc"></div>
+      <div class="field"><label>Fin (dernier délai)</label><input class="inp" type="date" id="nc-fin-${p.id}" value="${c?campFin(c):dIso(new Date(new Date().getFullYear(),new Date().getMonth()+10,0))}" data-act-input="ncRecalc"></div></div>
+    <div class="field"><label>Rythme des versements <span class="muted" style="font-weight:500">(proposé selon la durée, tu peux changer)</span></label><div class="pills" id="nc-per-${p.id}" ${c?'data-manuel="1"':''}>${[['jour','Chaque jour'],['semaine','Chaque semaine'],['mois','Chaque mois'],['unique','En une fois']].map(([v,l])=>`<button type="button" class="pill ${(c?.periode||'mois')===v?'on':''}" data-act="ncPer" data-v="${v}">${l}</button>`).join('')}</div></div>
+    <div class="info mb" id="nc-dur-${p.id}" style="font-size:13px">—</div>
     <div class="field"><label>Montant pour tous (facultatif)</label><div class="row"><input class="inp" id="nc-all-${p.id}" inputmode="numeric" placeholder="Ex. 20000"><button class="btn sec sm" data-act="ncApplyAll">Appliquer</button></div></div>
-  </div><div class="muted">${c?`Lancée le ${fdate(c.creeLe)} (Mois 1 = ${c.debut.split('-').reverse().join('/')}).`:'Le paiement commence au <b>Mois 1</b>, le mois du lancement.'} Si un montant ne se divise pas juste, le dernier mois absorbe la différence.</div></div>
-  <div class="card" style="padding:4px 0"><div class="row between" style="padding:10px 14px;border-bottom:1px solid var(--line)"><label class="row" style="gap:8px;font-weight:700"><input type="checkbox" ${!c?'checked':''} data-act="ncAll"> Membres (${mem.length})</label><span class="muted">Montant total → mensualité</span></div>
+  <div class="muted">Après la date de fin, la campagne <b>reste ouverte</b> : elle est marquée « Délai dépassé » et les retardataires peuvent encore payer. Si un montant ne se divise pas juste, la dernière période absorbe la différence.</div></div>
+  <div class="card" style="padding:4px 0"><div class="row between" style="padding:10px 14px;border-bottom:1px solid var(--line)"><label class="row" style="gap:8px;font-weight:700"><input type="checkbox" ${!c?'checked':''} data-act="ncAll"> Membres (${mem.length})</label><span class="muted">Montant total → par période</span></div>
   <div style="max-height:${p.mode==='web'?'420px':'none'};overflow:auto">${mem.map(m=>{const l=lineOf(m.id);const pd=paid(m.id);const inn=c?!!l:true;return `<div class="row" style="padding:8px 14px;border-bottom:1px solid var(--line);gap:10px"><input type="checkbox" ${inn?'checked':''} ${pd?'disabled title="A déjà payé"':''} class="nc-chk" data-m="${m.id}"><div style="flex:1;min-width:0"><div class="name ellip" style="font-size:13px">${esc(fullName(m))}</div><div class="muted">${pd?`Déjà versé : ${fmtN(pd)}`:esc(m.fonction)}</div></div><input class="inp nc-amt" data-m="${m.id}" inputmode="numeric" style="width:${p.mode==='web'?'130px':'96px'};text-align:right" placeholder="0" value="${l?l.montant:(c?'':lastAmount(m.id)||'')}" data-act-input="ncRecalc"><div class="muted nc-prev" data-m="${m.id}" style="width:${p.mode==='web'?'110px':'62px'};text-align:right"></div></div>`}).join('')}</div>
   <div class="row between" style="padding:12px 14px"><div><div class="muted">Total attendu</div><div class="name" id="nc-tot-${p.id}" style="font-size:17px">—</div></div><button class="btn gold" data-act="${c?'ncSave':'ncLaunch'}" data-id="${c?c.id:''}"><i data-lucide="${c?'save':'rocket'}" class="i"></i>${c?'Enregistrer les modifications':'Lancer la campagne'}</button></div></div>`;
 }
@@ -1176,10 +1194,10 @@ function vMemberHome(p){
   const sel=enc.find(c=>c.id===p.sel)||enc[0];
   let h=(p.mode==='web'?wTitle(p,`Bonjour ${esc(prenomOf(m))} 👋`,'Ta situation, mise à jour à chaque paiement validé par la trésorière.'):`<div class="muted mb" style="font-size:13px">Bonjour <b style="color:var(--ink)">${esc(prenomOf(m))}</b> 👋 · ${enc.length} cotisation${enc.length>1?'s':''} en cours</div>`)+bdBanner(p);
   if(sel){const s=situation(sel.id,mid);const pct=Math.min(100,s.verse/s.total*100);
-    const top=`<div class="hero big-hero mb"><div class="row between"><div class="l">${sel===enc[0]?'Ma plus grosse cotisation':'Cotisation'} · Mois ${s.cur}/${sel.nbMois}</div><span class="chip" style="background:rgba(255,255,255,.16);color:#fff">${s.statut}</span></div>
-      <div class="hero-name">${esc(sel.nom)}</div><div class="big">${fmt(s.verse)}</div><div class="bar"><i style="width:${pct}%"></i></div>
+    const top=`<div class="hero big-hero mb"><div class="row between"><div class="l">${sel===enc[0]?'Ma plus grosse cotisation':'Cotisation'} · ${perPos(sel,s.cur)}</div><span class="chip" style="background:rgba(255,255,255,.16);color:#fff">${s.statut}</span></div>
+      <div class="hero-name">${esc(sel.nom)}</div>${delaiDepasse(sel)?`<div style="margin:-2px 0 6px"><span class="chip" style="background:#fde2e2;color:#a32020">Délai dépassé · fin le ${fdate(sel.fin)}</span></div>`:''}<div class="big">${fmt(s.verse)}</div><div class="bar"><i style="width:${pct}%"></i></div>
       <div class="split"><div>Ma cotisation<b>${fmt(s.total)}</b></div><div style="text-align:right">Reste à payer<b>${fmt(s.reste)}</b></div></div>
-      <div class="hero-pills"><span>${fmt(s.mensualite)} / mois</span><span>${sel.nbMois} mois</span>${s.retard?`<span style="background:rgba(255,120,120,.25)">Retard ${fmtN(s.retard)}</span>`:''}</div></div>
+      <div class="hero-pills"><span>${fmt(s.mensualite)} / ${perU(sel)}</span><span>${nbPer(sel)}</span><span>Fin ${fdate(campFin(sel))}</span>${s.retard?`<span style="background:rgba(255,120,120,.25)">Retard ${fmtN(s.retard)}</span>`:''}</div></div>
       ${enc.length>1?`<div class="name" style="font-size:14px;margin:2px 2px 8px">Mes autres cotisations en cours</div><div class="minis mb">${enc.filter(c=>c!==sel).slice(0,2).map(c=>{const t=situation(c.id,mid);return miniCard(c,t.verse/t.total,t.verse,t.reste,t.statut==='En retard'?`<b style="color:var(--red)">Retard ${fmtN(t.retard)}</b>`:t.statut,`data-act="selCamp" data-id="${c.id}"`)}).join('')}</div>`:''}`;
     const status=s.retard?`<div class="info red mb"><b>Tu as ${fmt(s.retard)} de retard.</b><br>Rapproche-toi de la trésorière pour régulariser.</div>`:s.statut==='Soldé'?`<div class="info mb"><b>Bravo, ta cotisation est soldée ! 🎉</b>${s.surplus?`<br>Tu as versé ${fmt(s.surplus)} de plus que prévu.`:''}</div>`:`<div class="info mb"><b>Tu es à jour 👍</b>${s.next?`<br>Prochain : Mois ${s.next.i+1}, il reste ${fmt(s.next.due-s.next.paid)}.`:''}</div>`;
     const pay=(s.reste>0&&payOn()?`<button class="btn gold block mb" data-act="payInApp" data-c="${sel.id}"><i data-lucide="wallet" class="i"></i>Payer ma cotisation</button>`:'')+(typeof qrMember==='function'?qrMember(p,sel.id,s):'');
@@ -1192,7 +1210,7 @@ function vMemberHome(p){
    const last=DB.payments.filter(x=>x.memberId===mid&&!x.annule).slice().sort((a,b)=>b.saisiLe.localeCompare(a.saisiLe)).slice(0,5);
    h+=`<div class="${p.mode==='web'?'grid':''}" style="${p.mode==='web'?'grid-template-columns:1fr 1fr;align-items:start':''}">
    <div class="card mb"><h3><i data-lucide="alarm-clock" class="i"></i>Mes cotisations en retard<span class="r">${lateC.length}</span></h3>
-   ${lateC.length?lateC.map(o=>`<div class="list-item" style="cursor:pointer" data-act="openMyCamp" data-id="${o.c.id}"><div class="grow"><div class="name ellip">${esc(o.c.nom)}</div><div class="muted">Mois ${o.s.cur}/${o.c.nbMois} (${moisNom(o.c,o.s.cur-1)}) · pour être à jour : <b style="color:var(--red)">${fmt(o.s.retard)}</b></div></div>${payOn()?`<button class="btn gold sm" data-act="payInApp" data-c="${o.c.id}">Payer</button>`:'<i data-lucide="chevron-right" class="i" style="color:var(--ink-3)"></i>'}</div>`).join(''):'<div class="empty" style="padding:14px">Aucun retard, bravo 👍</div>'}</div>
+   ${lateC.length?lateC.map(o=>`<div class="list-item" style="cursor:pointer" data-act="openMyCamp" data-id="${o.c.id}"><div class="grow"><div class="name ellip">${esc(o.c.nom)}</div><div class="muted">${perPos(o.c,o.s.cur)} (${moisNom(o.c,o.s.cur-1)}) · pour être à jour : <b style="color:var(--red)">${fmt(o.s.retard)}</b></div></div>${payOn()?`<button class="btn gold sm" data-act="payInApp" data-c="${o.c.id}">Payer</button>`:'<i data-lucide="chevron-right" class="i" style="color:var(--ink-3)"></i>'}</div>`).join(''):'<div class="empty" style="padding:14px">Aucun retard, bravo 👍</div>'}</div>
    ${sRole(p).id==='organisateur'?'':banners(p)}<div class="card mb" style="padding:14px 16px 4px;grid-column:1/-1"><h3><i data-lucide="history" class="i"></i>Mes 5 derniers paiements<span class="r"><button class="link" data-act="tab" data-tab="historique">Tout voir →</button></span></h3>${last.map(x=>payRow(x,p,false,true)).join('')||'<div class="empty">Aucun versement pour l\'instant.</div>'}</div></div>`+(sRole(p).id==='organisateur'?'':eventsBlock(p,3));}
   if(closed.length)h+=`<div class="card"><h3><i data-lucide="archive" class="i"></i>Campagnes terminées</h3>${closed.map(c=>{const s=situation(c.id,mid);return `<div class="list-item"><div class="grow"><div class="name">${esc(c.nom)}</div><div class="muted">${fmtN(s.verse)} / ${fmtN(s.total)}</div></div>${statutChip(s.statut)}</div>`}).join('')}</div>`;
   return h;
@@ -1220,19 +1238,19 @@ function vMyCamps(p){
   return wTitle(p,'Mes campagnes','Toutes les cotisations qui te concernent, avec ta situation dans chacune.')+(payOn()&&tot.r>0?`<button class="btn gold block mb" data-act="payInApp"><i data-lucide="wallet" class="i"></i>Payer une cotisation</button>`:'')+
   `<div class="kpis"><div class="kpi"><div class="l">Total versé</div><div class="v" style="color:var(--green)">${fmt(tot.v)}</div></div><div class="kpi"><div class="l">Reste à payer</div><div class="v">${fmt(tot.r)}</div></div></div>
   ${L.map(c=>{const s=situation(c.id,mid);const pct=Math.min(100,s.verse/s.total*100);const on=c.statut==='En cours';return `<div class="card mb" style="cursor:pointer;${on?'':'opacity:.7'}" data-act="openMyCamp" data-id="${c.id}">
-    <div class="row between"><div style="min-width:0"><div class="name ellip" style="font-size:15px">${esc(c.nom)}</div><div class="muted">${on?`Mois ${s.cur}/${c.nbMois} · ${fmt(s.mensualite)}/mois`:'Campagne terminée'}</div></div>${statutChip(s.statut)}</div>
+    <div class="row between"><div style="min-width:0"><div class="name ellip" style="font-size:15px">${esc(c.nom)} ${delaiChip(c)}</div><div class="muted">${on?`${perPos(c,s.cur)} · ${fmt(s.mensualite)}/${perU(c)}`:'Campagne terminée'}</div></div>${statutChip(s.statut)}</div>
     <div class="row between mt" style="font-size:12.5px"><span>Versé <b>${fmtN(s.verse)}</b> / ${fmtN(s.total)}</span><span>Reste <b>${fmtN(s.reste)}</b></span></div>
     <div class="bar" style="margin-top:6px"><i style="width:${pct}%"></i></div><div class="dots">${s.months.map(mo=>`<i class="${mo.state}"></i>`).join('')}</div></div>`}).join('')||'<div class="card empty">Aucune campagne.</div>'}`;
 }
 function vMyCamp(p,cid){
   const c=camp(cid),mid=sMember(p).id,s=situation(cid,mid);const pct=Math.min(100,s.verse/s.total*100);const on=c.statut==='En cours';
   const back=p.mode==='web'?`<button class="link mb" data-act="back"><i data-lucide="arrow-left" class="i i-sm"></i>Mes campagnes</button>`:'';
-  return back+`<div class="hero big-hero mb" style="${on?'':'background:linear-gradient(140deg,#4a5852,#2b3833)'}"><div class="row between"><div class="l">${on?`Mois ${s.cur}/${c.nbMois}`:'Terminée'}</div><span class="chip" style="background:rgba(255,255,255,.16);color:#fff">${s.statut}</span></div>
-    <div class="hero-name">${esc(c.nom)}</div><div class="big">${fmt(s.verse)}</div><div class="bar"><i style="width:${pct}%"></i></div>
+  return back+`<div class="hero big-hero mb" style="${on?'':'background:linear-gradient(140deg,#4a5852,#2b3833)'}"><div class="row between"><div class="l">${on?`${perPos(c,s.cur)}`:'Terminée'}</div><span class="chip" style="background:rgba(255,255,255,.16);color:#fff">${s.statut}</span></div>
+    <div class="hero-name">${esc(c.nom)}</div>${delaiDepasse(c)?`<div style="margin:-2px 0 6px"><span class="chip" style="background:#fde2e2;color:#a32020">Délai dépassé · fin le ${fdate(c.fin)}</span></div>`:''}<div class="big">${fmt(s.verse)}</div><div class="bar"><i style="width:${pct}%"></i></div>
     <div class="split"><div>Ma cotisation<b>${fmt(s.total)}</b></div><div style="text-align:right">Reste à payer<b>${fmt(s.reste)}</b></div></div></div>
-  ${on&&s.retard?`<div class="info red mb"><b>Pour être à jour ce mois-ci : ${fmt(s.retard)}</b></div>`:''}
+  ${on&&s.retard?`<div class="info red mb"><b>Pour être à jour : ${fmt(s.retard)}</b></div>`:''}
   ${on&&s.reste>0&&payOn()?`<button class="btn gold block mb" data-act="payInApp" data-c="${c.id}"><i data-lucide="wallet" class="i"></i>Payer cette cotisation</button>`:''}${on&&typeof qrMember==='function'?qrMember(p,c.id,s):''}
-  <div class="card mb"><h3><i data-lucide="calendar-days" class="i"></i>Mon échéancier<span class="r">${fmt(s.mensualite)} / mois</span></h3><div class="months" style="grid-template-columns:repeat(${Math.min(5,c.nbMois)},1fr)">${s.months.map(mo=>moCell(s,mo,on)).join('')}</div>${on?moisDetail(s):''}</div>
+  <div class="card mb"><h3><i data-lucide="calendar-days" class="i"></i>Mon échéancier<span class="r">${fmt(s.mensualite)} / ${perU(c)}</span></h3><div class="months" style="grid-template-columns:repeat(${Math.min(5,c.nbMois)},1fr)">${s.months.map(mo=>moCell(s,mo,on)).join('')}</div>${on?moisDetail(s):''}</div>
   <div class="card" style="padding:4px 14px"><h3 style="margin:12px 0 4px">Mes versements pour cette campagne</h3>${DB.payments.filter(x=>x.campagneId===cid&&x.memberId===mid).slice().reverse().map(x=>payRow(x,p)).join('')||'<div class="empty">Aucun versement.</div>'}</div>`;
 }
 function vMemberHist(p){
@@ -1353,7 +1371,7 @@ document.addEventListener('click',async e=>{
     case'openRel':closeModal();p.f.rc=+d.id;p.f.rf='retard';p.sub='relances';renderPane(p);break;
     case'memberSit':memberSit(p,+d.c,+d.m);break;
     case'relOne':{const c=camp(+d.c),m=member(+d.m),s=situation(c.id,m.id);DB.relances.push({campagneId:c.id,memberId:m.id,t:nowIso(),par:sessName(p)});log(sessName(p),'Relance envoyée',`${fullName(m)} — ${c.nom} (WhatsApp)`);
-      notify({mid:m.id},'relances',`Rappel : ${c.nom}`,`Mois ${s.cur}/${c.nbMois} : tu dois payer ${fmt(s.retard||s.reste)} pour être à jour.`,sAcct(p).id);persist();setTimeout(()=>{memberSit(p,c.id,m.id);refresh()},300);break}
+      notify({mid:m.id},'relances',`Rappel : ${c.nom}`,`${perPos(c,s.cur)} : tu dois payer ${fmt(s.retard||s.reste)} pour être à jour.`,sAcct(p).id);persist();setTimeout(()=>{memberSit(p,c.id,m.id);refresh()},300);break}
     case'forgot':openModal(`<h2>Mot de passe oublié</h2><div class="muted mb">Entre l'e-mail enregistré sur ton profil. Tu recevras un lien pour choisir un nouveau mot de passe.</div><div class="field"><label>E-mail</label><input class="inp" id="fg-mail" placeholder="nom@mail.com"></div><div class="info gold" style="font-size:12px">Pas d'e-mail ? Demande au président de réinitialiser ton mot de passe.</div><div class="foot"><button class="btn sec" data-act="closeModal">Annuler</button><button class="btn" data-act="forgotSend">Envoyer le lien</button></div>`,{pane:paneId});break;
     case'forgotSend':{const v=document.getElementById('fg-mail').value.trim().toLowerCase();const ok=DB.members.some(m=>m.email&&m.email===v&&acctOfMember(m.id));openModal(`<h2>${ok?'E-mail envoyé':'E-mail inconnu'}</h2><div class="muted">${ok?`Un lien de réinitialisation a été envoyé à <b>${esc(v)}</b> (simulation dans ce prototype).`:'Aucun accès ne correspond à cet e-mail. Demande au président de réinitialiser ton mot de passe.'}</div><div class="foot"><button class="btn" data-act="closeModal">OK</button></div>`);break}
     case'saveMail':{const a=sAcct(p),m=sMember(p);const v=document.getElementById('pm-mail-'+p.id).value.trim().toLowerCase();if(v&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)){toast('E-mail invalide.');return}
@@ -1382,6 +1400,7 @@ document.addEventListener('click',async e=>{
     case'addMember':openModal(memberForm(null),{pane:paneId},true);break;
     case'editMember':openModal(memberForm(member(+d.id)),{pane:paneId},true);break;
     case'dep':{const v=d.v;FORMDEP=FORMDEP.includes(v)?FORMDEP.filter(x=>x!==v):[...FORMDEP,v];el.classList.toggle('on',FORMDEP.includes(v));break}
+    case'ncPer':{const pb=document.getElementById(`nc-per-${p.id}`);if(pb)pb.dataset.manuel='1';document.querySelectorAll(`#nc-per-${p.id} .pill`).forEach(b=>b.classList.toggle('on',b.dataset.v===d.v));ncRecalc(p);break}
     case'actualiser':refresh();toast('À jour ✓');break;
     case'bap':FORMBAP=d.v==='1';document.querySelectorAll('#f-bap .pill').forEach(b=>b.classList.toggle('on',b.dataset.v===d.v));break;
     case'saveMember':saveMember(d.id?+d.id:null);break;
@@ -1539,37 +1558,43 @@ function saveMember(id){
 /* ---- campagne ---- */
 function ncRecalc(p){
   const root=document.getElementById('pane-'+p.id);if(!root)return;
-  const n=Math.max(1,+(root.querySelector(`#nc-mois-${p.id}`)?.value)||1);let tot=0,cnt=0;
+  const deb=root.querySelector(`#nc-deb-${p.id}`)?.value,fin=root.querySelector(`#nc-fin-${p.id}`)?.value;const pb=root.querySelector(`#nc-per-${p.id}`);
+  if(pb&&!pb.dataset.manuel){const a=perAuto(deb,fin);pb.querySelectorAll('.pill').forEach(b=>b.classList.toggle('on',b.dataset.v===a))}
+  const per=root.querySelector(`#nc-per-${p.id} .pill.on`)?.dataset.v||'mois';
+  const n0=nPeriodes(deb,fin,per),n=Math.max(1,n0);const u={jour:'jour',semaine:'sem.',mois:'mois',unique:'en une fois'}[per];let tot=0,cnt=0;
+  const box=root.querySelector(`#nc-dur-${p.id}`);if(box){box.className='info mb'+(n0?'':' red');box.innerHTML=n0?`Du <b>${fdate(deb)}</b> au <b>${fdate(fin)}</b> → <b>${nbPer({periode:per},n0)}</b>${per==='unique'?` à verser au plus tard le ${fdate(fin)}`:` (une échéance chaque ${PER[per][0]})`}.${n0>{jour:120,semaine:104,mois:36,unique:1}[per]?' <b>Trop d\'échéances : choisis un autre rythme.</b>':''}`:'La date de fin doit être après la date de début.'}
   root.querySelectorAll('.nc-amt').forEach(i=>{const v=+digits(i.value);const chk=root.querySelector(`.nc-chk[data-m="${i.dataset.m}"]`).checked;const prev=root.querySelector(`.nc-prev[data-m="${i.dataset.m}"]`);
-    prev.textContent=v&&chk?fmtN(schedule(v,n)[0])+'/mois':'';if(chk&&v){tot+=v;cnt++}});
+    prev.textContent=v&&chk?(per==='unique'?fmtN(v)+' '+u:fmtN(schedule(v,n)[0])+'/'+u):'';if(chk&&v){tot+=v;cnt++}});
   const t=root.querySelector(`#nc-tot-${p.id}`);if(t)t.textContent=`${fmt(tot)} · ${cnt} membres`;
 }
 function readCampForm(p){
-  const root=document.getElementById('pane-'+p.id);const nom=root.querySelector(`#nc-nom-${p.id}`).value.trim();const n=+root.querySelector(`#nc-mois-${p.id}`).value;
-  if(!nom){toast('Donne un nom à la campagne.');return null}if(!(n>=1&&n<=36)){toast('Nombre de mois entre 1 et 36.');return null}
+  const root=document.getElementById('pane-'+p.id);const nom=root.querySelector(`#nc-nom-${p.id}`).value.trim();
+  const deb=root.querySelector(`#nc-deb-${p.id}`).value,fin=root.querySelector(`#nc-fin-${p.id}`).value,per=root.querySelector(`#nc-per-${p.id} .pill.on`)?.dataset.v||'mois';const n=nPeriodes(deb,fin,per);
+  if(!nom){toast('Donne un nom à la campagne.');return null}if(!deb||!fin){toast('Choisis la date de début et la date de fin.');return null}if(!n){toast('La date de fin doit être après la date de début.');return null}
+  if(n>{jour:120,semaine:104,mois:36,unique:1}[per]){toast('Trop d\'échéances pour ce rythme : choisis-en un autre.');return null}
   const lignes=[];let bad=null;root.querySelectorAll('.nc-amt').forEach(i=>{const chk=root.querySelector(`.nc-chk[data-m="${i.dataset.m}"]`).checked;const v=+digits(i.value);if(chk&&v)lignes.push({memberId:+i.dataset.m,montant:v});else if(chk&&!v)bad=bad||member(+i.dataset.m)});
   if(bad){toast(`Montant manquant pour ${fullName(bad)} (ou décoche-le).`);return null}
   if(!lignes.length){toast('Indique au moins un montant.');return null}
-  return{nom,n,lignes};
+  return{nom,n,deb,fin,per,lignes};
 }
 let PENDING=null;
 function ncLaunch(p){
   const r=readCampForm(p);if(!r)return;const tot=r.lignes.reduce((a,l)=>a+l.montant,0);PENDING={pane:p.id,...r};MCTX={pane:p.id};
-  openModal(`<h2>Lancer « ${esc(r.nom)} » ?</h2><div class="receipt mt"><div class="rl"><span>Durée</span><b>${r.n} mois</b></div><div class="rl"><span>Membres</span><b>${r.lignes.length}</b></div><div class="rl"><span>Total attendu</span><b>${fmt(tot)}</b></div></div>
+  openModal(`<h2>Lancer « ${esc(r.nom)} » ?</h2><div class="receipt mt"><div class="rl"><span>Période</span><b>${fdate(r.deb)} → ${fdate(r.fin)}</b></div><div class="rl"><span>Échéances</span><b>${nbPer({periode:r.per},r.n)}</b></div><div class="rl"><span>Membres</span><b>${r.lignes.length}</b></div><div class="rl"><span>Total attendu</span><b>${fmt(tot)}</b></div></div>
   <div class="info mt">Dès le lancement, la campagne apparaît chez la trésorière pour le suivi, et chaque membre voit sa cotisation et son échéancier.</div>
   <div class="foot"><button class="btn sec" data-act="closeModal">Retour</button><button class="btn gold" data-act="confirmLaunch"><i data-lucide="rocket" class="i"></i>Lancer</button></div>`);
 }
 function doLaunch(){
   const P=PENDING;if(!P)return;const p=pane(P.pane);const d=new Date();
-  const c={id:DB.seq++,nom:P.nom,nbMois:P.n,debut:d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'),statut:'En cours',creePar:sessName(p),creeLe:nowIso(),lignes:P.lignes};
-  DB.campaigns.push(c);log(c.creePar,'Campagne lancée',`« ${c.nom} » — ${c.nbMois} mois, ${c.lignes.length} membres, ${fmt(campTotal(c))}`);
-  notify({perm:'campagnes_voir'},'campagnes',`Nouvelle campagne : ${c.nom}`,`${c.nbMois} mois · ${c.lignes.length} membres · ${fmt(campTotal(c))}`,sAcct(p).id);
-  notify({mids:c.lignes.map(l=>l.memberId)},'campagnes',`Nouvelle cotisation : ${c.nom}`,`Ouvre « Ma situation » pour voir ton montant et ton échéancier (${c.nbMois} mois).`,sAcct(p).id);
+  const c={id:DB.seq++,nom:P.nom,nbMois:P.n,debut:P.deb.slice(0,7),debutJ:P.deb,fin:P.fin,periode:P.per,statut:'En cours',creePar:sessName(p),creeLe:nowIso(),lignes:P.lignes};
+  DB.campaigns.push(c);log(c.creePar,'Campagne lancée',`« ${c.nom} » — ${nbPer(c)} (${fdate(c.debutJ||c.debut+'-01')} → ${fdate(campFin(c))}), ${c.lignes.length} membres, ${fmt(campTotal(c))}`);
+  notify({perm:'campagnes_voir'},'campagnes',`Nouvelle campagne : ${c.nom}`,`${nbPer(c)} · ${c.lignes.length} membres · ${fmt(campTotal(c))}`,sAcct(p).id);
+  notify({mids:c.lignes.map(l=>l.memberId)},'campagnes',`Nouvelle cotisation : ${c.nom}`,`Ouvre « Ma situation » pour voir ton montant et ton échéancier (${nbPer(c)}, jusqu'au ${fdate(campFin(c))}).`,sAcct(p).id);
   PENDING=null;closeModal();p.sub={camp:c.id};toast('Campagne lancée !');refresh();
 }
 function ncSave(p,cid){
   const c=camp(cid);const r=readCampForm(p);if(!r)return;
-  const ch=[];if(r.nom!==c.nom)ch.push(`nom : « ${c.nom} » → « ${r.nom} »`);if(r.n!==c.nbMois)ch.push(`durée : ${c.nbMois} → ${r.n} mois`);
+  const ch=[];if(r.nom!==c.nom)ch.push(`nom : « ${c.nom} » → « ${r.nom} »`);if(r.deb!==(c.debutJ||c.debut+'-01')||r.fin!==campFin(c)||r.per!==(c.periode||'mois'))ch.push(`dates : ${fdate(c.debutJ||c.debut+'-01')} → ${fdate(campFin(c))} devient ${fdate(r.deb)} → ${fdate(r.fin)} (${nbPer({periode:r.per},r.n)})`);
   const oldMap=new Map(c.lignes.map(l=>[l.memberId,l.montant]));const newMap=new Map(r.lignes.map(l=>[l.memberId,l.montant]));
   const added=r.lignes.filter(l=>!oldMap.has(l.memberId)),removed=c.lignes.filter(l=>!newMap.has(l.memberId)),changed=r.lignes.filter(l=>oldMap.has(l.memberId)&&oldMap.get(l.memberId)!==l.montant);
   if(added.length)ch.push(`${added.length} membre(s) ajouté(s)`);if(removed.length)ch.push(`${removed.length} membre(s) retiré(s)`);if(changed.length)ch.push(`${changed.length} montant(s) modifié(s)`);
@@ -1584,7 +1609,7 @@ function ncSave(p,cid){
 }
 function doSave(){
   const P=PENDING;if(!P)return;const p=pane(P.pane);const c=camp(P.cid);
-  c.nom=P.nom;c.nbMois=P.n;c.lignes=P.lignes;
+  c.nom=P.nom;c.nbMois=P.n;c.debut=P.deb.slice(0,7);c.debutJ=P.deb;c.fin=P.fin;c.periode=P.per;c.lignes=P.lignes;
   log(sessName(p),'Campagne modifiée',`« ${c.nom} » — ${P.ch.join(' ; ')}${P.changed.length?' · '+P.changed.map(l=>`${fullName(member(l.memberId))} ${fmtN(P.oldMap.get(l.memberId))}→${fmtN(l.montant)}`).join(', '):''}`);
   notify({perm:'campagnes_voir'},'campagnes',`Campagne modifiée : ${c.nom}`,P.ch.join(' ; '),sAcct(p).id);
   P.changed.forEach(l=>notify({mid:l.memberId},'campagnes',`Ta cotisation a changé : ${c.nom}`,`Nouveau montant : ${fmt(l.montant)} (${fmt(schedule(l.montant,c.nbMois)[0])}/mois)`,sAcct(p).id));
@@ -2114,7 +2139,7 @@ async function loadAll(){
   const roleNom=id=>(D.roles.find(r=>r.id===id)||{}).nom||'';
   D.accounts=comptes.map(c=>({id:I(c.user_id),uid:c.user_id,memberId:I(c.membre_id),roleId:c.role_id,actif:c.actif,motif:c.motif_blocage||'',mustChange:c.doit_changer_mdp,derniere:c.derniere_connexion,creeLe:c.cree_le,prefs:c.prefs||{}}));
   const nameOf=u=>{if(!u)return'';const m=D.members.find(x=>x.uuid===u);if(!m)return'Bureau';const a=D.accounts.find(x=>x.memberId===m.id);const r=a&&a.roleId!=='membre'?` (${a.roleId==='president'?'Président':roleNom(a.roleId)})`:'';return titleCase(fullName(m))+r};
-  D.campaigns=camps.map(c=>({id:I(c.id),uuid:c.id,nom:c.nom,nbMois:c.nb_mois,debut:c.debut.slice(0,7),statut:c.statut==='en_cours'?'En cours':'Clôturée',creePar:nameOf(c.cree_par),creeLe:c.cree_le,
+  D.campaigns=camps.map(c=>({id:I(c.id),uuid:c.id,nom:c.nom,nbMois:c.nb_mois,debut:c.debut.slice(0,7),debutJ:c.debut,fin:c.fin||null,periode:c.periode||'mois',statut:c.statut==='en_cours'?'En cours':'Clôturée',creePar:nameOf(c.cree_par),creeLe:c.cree_le,
     lignes:lignes.filter(l=>l.campagne_id===c.id).map(l=>({memberId:I(l.membre_id),montant:l.montant}))}));
   PAYU=new Map();
   D.payments=pays.map(x=>{PAYU.set(x.numero,x.id);return{id:x.numero,uuid:x.id,campagneId:I(x.campagne_id),memberId:I(x.membre_id),montant:x.montant,date:x.date_paiement,moyen:x.moyen,ref:x.reference||'',note:'',
@@ -2323,12 +2348,12 @@ API.toggleOp=async(p,d)=>{const ops=Object.assign({},DB.settings.operateurs,{[d.
 API.payGo=async()=>{toast('Le paiement Mobile Money sera disponible dès que les opérateurs seront branchés. En attendant, paie auprès de la trésorière.');return'nosync'};
 
 /* campagnes */
-API.confirmLaunch=async()=>{const P=PENDING;if(!P)return'nosync';const d=new Date();
-  const c=await must(sb.from('campagnes').insert({nom:P.nom,nb_mois:P.n,debut:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`,cree_par:ME.membre_id}).select().single());
+API.confirmLaunch=async()=>{const P=PENDING;if(!P)return'nosync';
+  const c=await must(sb.from('campagnes').insert({nom:P.nom,nb_mois:P.n,debut:P.deb,fin:P.fin,periode:P.per,cree_par:ME.membre_id}).select().single());
   if(P.lignes.length)await must(sb.from('campagne_lignes').insert(P.lignes.map(l=>({campagne_id:c.id,membre_id:U(l.memberId),montant:l.montant}))));
   PENDING=null;closeModal();const p=pane(P.pane);await sync();p.sub={camp:I(c.id)};renderPane(p);toast('Campagne lancée !');return'nosync'};
 API.confirmSave=async()=>{const P=PENDING;if(!P)return'nosync';const c=camp(P.cid);
-  await must(sb.from('campagnes').update({nom:P.nom,nb_mois:P.n}).eq('id',c.uuid));
+  await must(sb.from('campagnes').update({nom:P.nom,nb_mois:P.n,debut:P.deb,fin:P.fin,periode:P.per}).eq('id',c.uuid));
   const newMap=new Map(P.lignes.map(l=>[l.memberId,l.montant]));
   for(const l of c.lignes)if(!newMap.has(l.memberId))await must(sb.from('campagne_lignes').delete().eq('campagne_id',c.uuid).eq('membre_id',U(l.memberId)));
   const up=P.lignes.filter(l=>P.oldMap.get(l.memberId)!==l.montant).map(l=>({campagne_id:c.uuid,membre_id:U(l.memberId),montant:l.montant}));
@@ -2466,7 +2491,7 @@ function vProfil(p){const h=vProfil0(p);const i=h.indexOf('<div class="card mb">
 /* toucher une notification ouvre la liste des notifications */
 if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.younity==='notifications'){const p=PANES[0];if(p&&p.session&&!p.session.mustChange){sync(true).then(()=>{API.openNotifs(p)})}}});
 
-window.YV='2.3.0';showSplash=function(){};const SP_T0=Date.now();function hideSplash(){const w=document.getElementById('spWrap');if(!w||w.dataset.out)return;w.dataset.out=1;const d=Math.max(0,3000-(Date.now()-SP_T0));setTimeout(()=>{w.firstElementChild&&w.firstElementChild.classList.add('out');setTimeout(()=>w.remove(),600)},d)}setTimeout(hideSplash,20000);
+window.YV='2.4.0';showSplash=function(){};const SP_T0=Date.now();function hideSplash(){const w=document.getElementById('spWrap');if(!w||w.dataset.out)return;w.dataset.out=1;const d=Math.max(0,3000-(Date.now()-SP_T0));setTimeout(()=>{w.firstElementChild&&w.firstElementChild.classList.add('out');setTimeout(()=>w.remove(),600)},d)}setTimeout(hideSplash,20000);
 /* ================== APPLICATION NATIVE (Android, Capacitor) ================== */
 const NATIF=!!(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform());
 function PL(n){try{return(Capacitor.Plugins&&Capacitor.Plugins[n])||Capacitor.registerPlugin(n)}catch(e){return null}}
