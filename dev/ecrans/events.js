@@ -152,8 +152,8 @@ function vOrgHome(p){const me=sMember(p);const U=upcoming();
       return `<div class="evc" data-act="openEvt" data-id="${e.id}"><div class="evc-img">${vis}<span class="evc-j">${j===0?'Aujourd\'hui':j===1?'Demain':'J-'+j}</span></div>
       <div class="evc-f"><span title="Participent"><i data-lucide="users" class="i i-sm"></i><b>${c.oui}</b> participent${c.pe?` · ${c.pe} peut-être`:''}</span><span title="Tâches" class="${T.length&&td<T.length?'warn':''}"><i data-lucide="list-checks" class="i i-sm"></i><b>${T.length?td+'/'+T.length:'—'}</b></span></div></div>`}).join('')}</div>`;
   else h+=`<div class="card empty mb">Aucun événement prévu.<br><button class="btn mt" data-act="newEvt">Créer un événement</button></div>`;
-  h+=(typeof myPayCard==='function'?myPayCard(p)+myLateBlock(p):'');
   h+=bdBanner(p);
+  h+=(typeof myPayCard==='function'?myPayCard(p)+myLateBlock(p):'');
   const todo=DB.tasks.filter(t=>!t.faite&&evt(t.evtId)&&!evt(t.evtId).annule&&!evPast(evt(t.evtId))).sort((a,b)=>evt(a.evtId).debut.localeCompare(evt(b.evtId).debut));
   h+=`<div><div class="card mb"><h3><i data-lucide="list-todo" class="i"></i>Tâches à faire<span class="r">${todo.length}</span></h3>
     ${todo.slice(0,5).map(t=>{const m=member(t.resp),e=evt(t.evtId);return `<div class="list-item"><button class="chk" data-act="evTask" data-id="${t.id}"><i data-lucide="check" class="i i-sm"></i></button><div class="grow" style="min-width:0;cursor:pointer" data-act="openEvt" data-id="${e.id}"><div class="name ellip" style="font-size:13px">${esc(t.libelle)}</div><div class="muted ellip">${esc(e.titre)} · ${m?esc(titleCase(fullName(m))):'personne désignée'}</div></div></div>`}).join('')||'<div class="empty" style="padding:12px">Tout est prêt 🎉</div>'}</div>
