@@ -102,7 +102,7 @@ function loginHtml(p){
   return `<div style="margin:4px 0 22px">${logoFull(210)}</div>
   ${p.kicked?'<div class="info red mb">Ta session a été fermée : ton compte a été bloqué ou rendu inactif. Rapproche-toi du président.</div>':''}<h2>Bienvenue</h2><div class="muted" style="font-size:13.5px;margin:4px 0 18px">Connecte-toi avec ton numéro de téléphone ou ton e-mail, et ton mot de passe.</div>
   <form data-login="${p.id}">
-  <div class="field"><label>Téléphone ou e-mail</label><input class="inp" id="li-id-${p.id}" placeholder="07 00 00 00 00 ou nom@mail.com" autocomplete="username" inputmode="email"></div>
+  <div class="field"><label>Téléphone ou e-mail</label><input class="inp" id="li-id-${p.id}" placeholder="Téléphone ou e-mail" autocomplete="username" inputmode="email"></div>
   <div class="field"><label>Mot de passe</label><div class="pw-wrap"><input class="inp" id="li-pw-${p.id}" type="password" autocomplete="current-password"><button type="button" class="pw-eye" data-act="pwEye" aria-label="Afficher le mot de passe"><i data-lucide="eye" class="i i-sm"></i></button></div></div>
   <div id="li-err-${p.id}" class="info red mb" style="display:none"></div>
   <button class="btn block" type="submit" id="li-go-${p.id}"><i data-lucide="log-in" class="i"></i>Se connecter</button></form>
@@ -127,7 +127,7 @@ async function doLogin(p){const ident=document.getElementById('li-id-'+p.id).val
     if(error)return fail(/invalid/i.test(error.message)?'Mot de passe incorrect.':/banned/i.test(error.message)?'Ton compte est bloqué. Rapproche-toi du président.':errMsg(error));
     await startSession(p)}
   catch(e){fail(errMsg(e))}finally{btn.disabled=false;btn.classList.remove('busy')}}
-async function startSession(p){const{data}=await sb.auth.getUser();const u=data.user;if(!u){p.session=null;renderPane(p);return}
+async function startSession(p,uSess){let u=uSess;if(!u){const{data}=await sb.auth.getUser();u=data.user}if(!u){p.session=null;renderPane(p);return}
   const mc=await loadAll();
   if(!mc||mc.etat!=='actif'){await sb.auth.signOut();p.session=null;p.kicked=mc&&(mc.etat==='bloque'||mc.etat==='inactif');renderPane(p);return}
   rpc('enregistrer_connexion').catch(()=>{});
@@ -343,8 +343,12 @@ API.payInAppOld=async()=>'nosync';
 
 /* ---- démarrage ---- */
 async function boot(){DB=emptyDB();setupPanes();showSplash();
-  try{const{data}=await sb.auth.getSession();if(data.session)await startSession(PANES[0])}catch(e){console.warn(e)}
-  renderAll()}
+  /* Session déjà ouverte sur ce téléphone : on garde le splash jusqu'au tableau de bord (pas d'écran de connexion entre les deux) */
+  let ok=true;try{const{data}=await sb.auth.getSession();if(data.session)await startSession(PANES[0],data.session.user)}catch(e){console.warn(e);ok=false}
+  renderAll();
+  if(!ok&&typeof hideSplash==='function'){const w=document.getElementById('spWrap');const t=w&&w.querySelector('.sp-tag');
+    if(t){t.innerHTML='Pas de connexion internet.<br><button class="btn sec sm" style="margin-top:12px" onclick="location.reload()">Réessayer</button>';const b=w.querySelector('.sp-bar');if(b)b.style.display='none';return}}
+  if(typeof hideSplash==='function')hideSplash()}
 sb.auth.onAuthStateChange((ev)=>{if(ev==='SIGNED_OUT'&&PANES[0]&&PANES[0].session){PANES[0].session=null;renderAll()}});
 
 /* =====================================================================

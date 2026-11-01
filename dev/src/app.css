@@ -35,3 +35,4 @@ body.app.large .web-login{min-height:100vh;min-height:100dvh;background:linear-g
 .pw-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--ink-3);padding:8px;cursor:pointer}
 input,select,textarea{font-size:16px!important}  /* évite le zoom automatique sur iPhone */
 .inp.code6{font-size:22px!important}
+body.app.tablette .m-body .grid.g-stack{grid-template-columns:1fr!important}

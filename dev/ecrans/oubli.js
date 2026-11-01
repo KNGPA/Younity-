@@ -16,7 +16,7 @@ function fgModal(step){const pid=FG.pane;
   <div class="field"><label>Confirmer</label><input class="inp" type="password" id="fg-p2"></div><div id="fg-err" class="info red" style="display:none"></div>
   <div class="foot"><button class="btn sec" data-act="fgSendCode" data-again="1">Renvoyer le code</button><button class="btn" data-act="fgValidate"><i data-lucide="check" class="i i-sm"></i>Valider</button></div>`,{pane:pid});
   if(step==='pres')return openModal(`<h2>Demander au président</h2><div class="muted mb">Le président reçoit ta demande dans l'application. Il réinitialise ton mot de passe et t'envoie un mot de passe provisoire sur WhatsApp.</div>
-  <div class="field"><label>Ton numéro de téléphone ou ton e-mail</label><input class="inp" id="fg-id" placeholder="07 00 00 00 00" value="${esc(FG.id||'')}"></div><div id="fg-err" class="info red" style="display:none"></div>
+  <div class="field"><label>Ton numéro de téléphone ou ton e-mail</label><input class="inp" id="fg-id" placeholder="Téléphone ou e-mail" value="${esc(FG.id||'')}"></div><div id="fg-err" class="info red" style="display:none"></div>
   <div class="foot"><button class="btn sec" data-act="fgBack">Retour</button><button class="btn" data-act="fgPresSend"><i data-lucide="send" class="i i-sm"></i>Envoyer la demande</button></div>`,{pane:pid});
 }
 function fgErr(t){const e=document.getElementById('fg-err');if(e){e.style.display='block';e.textContent=t}}

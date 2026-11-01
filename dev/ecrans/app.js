@@ -252,7 +252,6 @@ function renderPane(p){
       const m=sMember(p),r=sRole(p);
       el.innerHTML=`<div class="web"><aside class="side">
         <div class="who"><div class="avatar ${r.id==='membre'?'':'gold'}">${initials(fullName(m))}</div><div style="min-width:0"><div class="name ellip">${esc(titleCase(fullName(m)))}</div><div class="muted">${esc(r.id==='president'?'Président · super admin':r.nom)}</div></div></div>
-        ${p.session.mustChange?'':`<a class="${p.sub==='notifs'?'on':''}" data-act="openNotifs"><i data-lucide="bell" class="i"></i>Notifications${unreadCount(sAcct(p))?`<span class="badge" style="position:static;margin-left:auto">${unreadCount(sAcct(p))}</span>`:''}</a>`}
         ${p.session.mustChange?'':tabs.map(t=>`<a class="${p.tab===t[0]?'on':''}" data-act="tab" data-tab="${t[0]}"><i data-lucide="${t[2]}" class="i"></i>${t[1]}</a>`).join('')}
         <div class="grow"></div><a data-act="logout"><i data-lucide="log-out" class="i"></i>Se déconnecter</a>
       </aside><main class="w-main">${body}</main>${notifHtml(p)}</div>`;
@@ -300,7 +299,7 @@ function loginHtml(p){
   return `<div style="margin:6px 0 18px">${logoFull(200)}</div>
   ${p.kicked?'<div class="info red mb">Ta session a été fermée : ton compte a été bloqué. Rapproche-toi du président.</div>':''}<h2>Bienvenue</h2><div class="muted" style="font-size:13.5px;margin:4px 0 18px">Connecte-toi avec ton numéro de téléphone ou ton e-mail, et le mot de passe reçu.</div>
   <form data-login="${p.id}">
-  <div class="field"><label>Téléphone ou e-mail</label><input class="inp" id="li-id-${p.id}" placeholder="07 00 00 00 00 ou nom@mail.com" autocomplete="off"></div>
+  <div class="field"><label>Téléphone ou e-mail</label><input class="inp" id="li-id-${p.id}" placeholder="Téléphone ou e-mail" autocomplete="off"></div>
   <div class="field"><label>Mot de passe</label><input class="inp" id="li-pw-${p.id}" type="password" placeholder="••••-••••"></div>
   <div id="li-err-${p.id}" class="info red mb" style="display:none"></div>
   <button class="btn block" type="submit"><i data-lucide="log-in" class="i"></i>Se connecter</button></form>
@@ -350,7 +349,7 @@ function view(p){
     case'profil':return vProfil(p);
   }return'';
 }
-function wTitle(p,title,sub,actions=''){return p.mode==='web'?`<div class="w-title"><div><h1>${title}</h1>${sub?`<div class="sub">${sub}</div>`:''}</div><div class="actions">${actions}</div></div>`:(actions?`<div class="row mb" style="flex-wrap:wrap;gap:8px">${actions}</div>`:'')}
+function wTitle(p,title,sub,actions=''){return p.mode==='web'?`<div class="w-title"><div><h1>${title}</h1>${sub?`<div class="sub">${sub}</div>`:''}</div><div class="actions">${actions}${p.session&&!p.session.mustChange?bell(p):''}</div></div>`:(actions?`<div class="row mb" style="flex-wrap:wrap;gap:8px">${actions}</div>`:'')}
 function sm(p){return p.mode==='mobile'?'sm':''}
 function enCours(){return DB.campaigns.filter(c=>c.statut==='En cours')}
 function pills(p,key,opts,def){const v=p.f[key]??def;return opts.map(([val,label,n])=>`<button class="pill ${v===val?'on':''}" data-act="setF" data-k="${key}" data-v="${val}">${label}${n!=null?`<span class="n">${n}</span>`:''}</button>`).join('')}
@@ -387,7 +386,7 @@ function vDashboard(p){
     const glob=can(p,'paiements_valider')||can(p,'journal');const myId=sMember(p).id;
     const recent=DB.payments.filter(x=>!x.annule&&(glob||x.memberId===myId)).slice().sort((a,b)=>b.saisiLe.localeCompare(a.saisiLe)).slice(0,5);
     const c=ec[0];const late=c?c.lignes.map(l=>({x:situation(c.id,l.memberId),m:member(l.memberId)})).filter(o=>o.x.retard>0).sort((a,b)=>b.x.retard-a.x.retard):[];
-    h+=`<div class="grid" style="grid-template-columns:${p.mode==='web'?'1.3fr 1fr':'1fr'}">
+    h+=`<div class="grid g-stack" style="grid-template-columns:${p.mode==='web'?'1.3fr 1fr':'1fr'}">
     <div><div class="card mb" style="padding:14px 16px 4px"><h3><i data-lucide="history" class="i"></i>${glob?'5 derniers paiements':'Mes 5 derniers paiements'}${glob?`<span class="r"><button class="link" data-act="tab" data-tab="paiements">Tout voir →</button></span>`:''}</h3>${recent.map(x=>payRow(x,p,false,!glob)).join('')||`<div class="empty">${glob?'Aucun paiement.':'Aucun versement pour l\'instant.'}</div>`}</div>${banners(p)}</div>
     ${sRole(p).id==='secretaire'?newMembers(p):c?`<div class="card"><h3><i data-lucide="alarm-clock" class="i"></i>En retard — ${esc(c.nom)}<span class="r">${late.length}</span></h3>
       ${late.length?late.slice(0,5).map(o=>`<div class="list-item" style="cursor:pointer" data-act="memberSit" data-c="${c.id}" data-m="${o.m.id}"><div class="avatar sm">${initials(o.m.nom)}</div><div class="grow"><div class="name ellip">${esc(fullName(o.m))}</div><div class="muted">Pour être à jour : <b style="color:var(--red)">${fmt(o.x.retard)}</b></div></div><i data-lucide="chevron-right" class="i" style="color:var(--ink-3)"></i></div>`).join(''):'<div class="empty">Personne en retard 🎉</div>'}
@@ -764,7 +763,7 @@ function vMemberHome(p){
    h+=`<div class="${p.mode==='web'?'grid':''}" style="${p.mode==='web'?'grid-template-columns:1fr 1fr;align-items:start':''}">
    <div class="card mb"><h3><i data-lucide="alarm-clock" class="i"></i>Mes cotisations en retard<span class="r">${lateC.length}</span></h3>
    ${lateC.length?lateC.map(o=>`<div class="list-item" style="cursor:pointer" data-act="openMyCamp" data-id="${o.c.id}"><div class="grow"><div class="name ellip">${esc(o.c.nom)}</div><div class="muted">Mois ${o.s.cur}/${o.c.nbMois} (${moisNom(o.c,o.s.cur-1)}) · pour être à jour : <b style="color:var(--red)">${fmt(o.s.retard)}</b></div></div>${payOn()?`<button class="btn gold sm" data-act="payInApp" data-c="${o.c.id}">Payer</button>`:'<i data-lucide="chevron-right" class="i" style="color:var(--ink-3)"></i>'}</div>`).join(''):'<div class="empty" style="padding:14px">Aucun retard, bravo 👍</div>'}</div>
-   ${sRole(p).id==='organisateur'?'':banners(p)}<div class="card mb" style="padding:14px 16px 4px"><h3><i data-lucide="history" class="i"></i>Mes 5 derniers paiements<span class="r"><button class="link" data-act="tab" data-tab="historique">Tout voir →</button></span></h3>${last.map(x=>payRow(x,p,false,true)).join('')||'<div class="empty">Aucun versement pour l\'instant.</div>'}</div></div>`+(sRole(p).id==='organisateur'?'':eventsBlock(p,3));}
+   ${sRole(p).id==='organisateur'?'':banners(p)}<div class="card mb" style="padding:14px 16px 4px;grid-column:1/-1"><h3><i data-lucide="history" class="i"></i>Mes 5 derniers paiements<span class="r"><button class="link" data-act="tab" data-tab="historique">Tout voir →</button></span></h3>${last.map(x=>payRow(x,p,false,true)).join('')||'<div class="empty">Aucun versement pour l\'instant.</div>'}</div></div>`+(sRole(p).id==='organisateur'?'':eventsBlock(p,3));}
   if(closed.length)h+=`<div class="card"><h3><i data-lucide="archive" class="i"></i>Campagnes terminées</h3>${closed.map(c=>{const s=situation(c.id,mid);return `<div class="list-item"><div class="grow"><div class="name">${esc(c.nom)}</div><div class="muted">${fmtN(s.verse)} / ${fmtN(s.total)}</div></div>${statutChip(s.statut)}</div>`}).join('')}</div>`;
   return h;
 }

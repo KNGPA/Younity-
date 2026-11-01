@@ -415,6 +415,7 @@ body.app.large .web-login{min-height:100vh;min-height:100dvh;background:linear-g
 .pw-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--ink-3);padding:8px;cursor:pointer}
 input,select,textarea{font-size:16px!important}  /* évite le zoom automatique sur iPhone */
 .inp.code6{font-size:22px!important}
+body.app.tablette .m-body .grid.g-stack{grid-template-columns:1fr!important}
 </style>
 <script src="vendor/supabase.js"></script><script src="vendor/lucide.min.js"></script><script src="vendor/xlsx.full.min.js" defer></script><script src="vendor/jspdf.umd.min.js" defer></script>
 </head><body class="app">
@@ -679,7 +680,6 @@ function renderPane(p){
       const m=sMember(p),r=sRole(p);
       el.innerHTML=`<div class="web"><aside class="side">
         <div class="who"><div class="avatar ${r.id==='membre'?'':'gold'}">${initials(fullName(m))}</div><div style="min-width:0"><div class="name ellip">${esc(titleCase(fullName(m)))}</div><div class="muted">${esc(r.id==='president'?'Président · super admin':r.nom)}</div></div></div>
-        ${p.session.mustChange?'':`<a class="${p.sub==='notifs'?'on':''}" data-act="openNotifs"><i data-lucide="bell" class="i"></i>Notifications${unreadCount(sAcct(p))?`<span class="badge" style="position:static;margin-left:auto">${unreadCount(sAcct(p))}</span>`:''}</a>`}
         ${p.session.mustChange?'':tabs.map(t=>`<a class="${p.tab===t[0]?'on':''}" data-act="tab" data-tab="${t[0]}"><i data-lucide="${t[2]}" class="i"></i>${t[1]}</a>`).join('')}
         <div class="grow"></div><a data-act="logout"><i data-lucide="log-out" class="i"></i>Se déconnecter</a>
       </aside><main class="w-main">${body}</main>${notifHtml(p)}</div>`;
@@ -727,7 +727,7 @@ function loginHtml(p){
   return `<div style="margin:6px 0 18px">${logoFull(200)}</div>
   ${p.kicked?'<div class="info red mb">Ta session a été fermée : ton compte a été bloqué. Rapproche-toi du président.</div>':''}<h2>Bienvenue</h2><div class="muted" style="font-size:13.5px;margin:4px 0 18px">Connecte-toi avec ton numéro de téléphone ou ton e-mail, et le mot de passe reçu.</div>
   <form data-login="${p.id}">
-  <div class="field"><label>Téléphone ou e-mail</label><input class="inp" id="li-id-${p.id}" placeholder="07 00 00 00 00 ou nom@mail.com" autocomplete="off"></div>
+  <div class="field"><label>Téléphone ou e-mail</label><input class="inp" id="li-id-${p.id}" placeholder="Téléphone ou e-mail" autocomplete="off"></div>
   <div class="field"><label>Mot de passe</label><input class="inp" id="li-pw-${p.id}" type="password" placeholder="••••-••••"></div>
   <div id="li-err-${p.id}" class="info red mb" style="display:none"></div>
   <button class="btn block" type="submit"><i data-lucide="log-in" class="i"></i>Se connecter</button></form>
@@ -777,7 +777,7 @@ function view(p){
     case'profil':return vProfil(p);
   }return'';
 }
-function wTitle(p,title,sub,actions=''){return p.mode==='web'?`<div class="w-title"><div><h1>${title}</h1>${sub?`<div class="sub">${sub}</div>`:''}</div><div class="actions">${actions}</div></div>`:(actions?`<div class="row mb" style="flex-wrap:wrap;gap:8px">${actions}</div>`:'')}
+function wTitle(p,title,sub,actions=''){return p.mode==='web'?`<div class="w-title"><div><h1>${title}</h1>${sub?`<div class="sub">${sub}</div>`:''}</div><div class="actions">${actions}${p.session&&!p.session.mustChange?bell(p):''}</div></div>`:(actions?`<div class="row mb" style="flex-wrap:wrap;gap:8px">${actions}</div>`:'')}
 function sm(p){return p.mode==='mobile'?'sm':''}
 function enCours(){return DB.campaigns.filter(c=>c.statut==='En cours')}
 function pills(p,key,opts,def){const v=p.f[key]??def;return opts.map(([val,label,n])=>`<button class="pill ${v===val?'on':''}" data-act="setF" data-k="${key}" data-v="${val}">${label}${n!=null?`<span class="n">${n}</span>`:''}</button>`).join('')}
@@ -814,7 +814,7 @@ function vDashboard(p){
     const glob=can(p,'paiements_valider')||can(p,'journal');const myId=sMember(p).id;
     const recent=DB.payments.filter(x=>!x.annule&&(glob||x.memberId===myId)).slice().sort((a,b)=>b.saisiLe.localeCompare(a.saisiLe)).slice(0,5);
     const c=ec[0];const late=c?c.lignes.map(l=>({x:situation(c.id,l.memberId),m:member(l.memberId)})).filter(o=>o.x.retard>0).sort((a,b)=>b.x.retard-a.x.retard):[];
-    h+=`<div class="grid" style="grid-template-columns:${p.mode==='web'?'1.3fr 1fr':'1fr'}">
+    h+=`<div class="grid g-stack" style="grid-template-columns:${p.mode==='web'?'1.3fr 1fr':'1fr'}">
     <div><div class="card mb" style="padding:14px 16px 4px"><h3><i data-lucide="history" class="i"></i>${glob?'5 derniers paiements':'Mes 5 derniers paiements'}${glob?`<span class="r"><button class="link" data-act="tab" data-tab="paiements">Tout voir →</button></span>`:''}</h3>${recent.map(x=>payRow(x,p,false,!glob)).join('')||`<div class="empty">${glob?'Aucun paiement.':'Aucun versement pour l\'instant.'}</div>`}</div>${banners(p)}</div>
     ${sRole(p).id==='secretaire'?newMembers(p):c?`<div class="card"><h3><i data-lucide="alarm-clock" class="i"></i>En retard — ${esc(c.nom)}<span class="r">${late.length}</span></h3>
       ${late.length?late.slice(0,5).map(o=>`<div class="list-item" style="cursor:pointer" data-act="memberSit" data-c="${c.id}" data-m="${o.m.id}"><div class="avatar sm">${initials(o.m.nom)}</div><div class="grow"><div class="name ellip">${esc(fullName(o.m))}</div><div class="muted">Pour être à jour : <b style="color:var(--red)">${fmt(o.x.retard)}</b></div></div><i data-lucide="chevron-right" class="i" style="color:var(--ink-3)"></i></div>`).join(''):'<div class="empty">Personne en retard 🎉</div>'}
@@ -1191,7 +1191,7 @@ function vMemberHome(p){
    h+=`<div class="${p.mode==='web'?'grid':''}" style="${p.mode==='web'?'grid-template-columns:1fr 1fr;align-items:start':''}">
    <div class="card mb"><h3><i data-lucide="alarm-clock" class="i"></i>Mes cotisations en retard<span class="r">${lateC.length}</span></h3>
    ${lateC.length?lateC.map(o=>`<div class="list-item" style="cursor:pointer" data-act="openMyCamp" data-id="${o.c.id}"><div class="grow"><div class="name ellip">${esc(o.c.nom)}</div><div class="muted">Mois ${o.s.cur}/${o.c.nbMois} (${moisNom(o.c,o.s.cur-1)}) · pour être à jour : <b style="color:var(--red)">${fmt(o.s.retard)}</b></div></div>${payOn()?`<button class="btn gold sm" data-act="payInApp" data-c="${o.c.id}">Payer</button>`:'<i data-lucide="chevron-right" class="i" style="color:var(--ink-3)"></i>'}</div>`).join(''):'<div class="empty" style="padding:14px">Aucun retard, bravo 👍</div>'}</div>
-   ${sRole(p).id==='organisateur'?'':banners(p)}<div class="card mb" style="padding:14px 16px 4px"><h3><i data-lucide="history" class="i"></i>Mes 5 derniers paiements<span class="r"><button class="link" data-act="tab" data-tab="historique">Tout voir →</button></span></h3>${last.map(x=>payRow(x,p,false,true)).join('')||'<div class="empty">Aucun versement pour l\'instant.</div>'}</div></div>`+(sRole(p).id==='organisateur'?'':eventsBlock(p,3));}
+   ${sRole(p).id==='organisateur'?'':banners(p)}<div class="card mb" style="padding:14px 16px 4px;grid-column:1/-1"><h3><i data-lucide="history" class="i"></i>Mes 5 derniers paiements<span class="r"><button class="link" data-act="tab" data-tab="historique">Tout voir →</button></span></h3>${last.map(x=>payRow(x,p,false,true)).join('')||'<div class="empty">Aucun versement pour l\'instant.</div>'}</div></div>`+(sRole(p).id==='organisateur'?'':eventsBlock(p,3));}
   if(closed.length)h+=`<div class="card"><h3><i data-lucide="archive" class="i"></i>Campagnes terminées</h3>${closed.map(c=>{const s=situation(c.id,mid);return `<div class="list-item"><div class="grow"><div class="name">${esc(c.nom)}</div><div class="muted">${fmtN(s.verse)} / ${fmtN(s.total)}</div></div>${statutChip(s.statut)}</div>`}).join('')}</div>`;
   return h;
 }
@@ -2025,7 +2025,7 @@ function fgModal(step){const pid=FG.pane;
   <div class="field"><label>Confirmer</label><input class="inp" type="password" id="fg-p2"></div><div id="fg-err" class="info red" style="display:none"></div>
   <div class="foot"><button class="btn sec" data-act="fgSendCode" data-again="1">Renvoyer le code</button><button class="btn" data-act="fgValidate"><i data-lucide="check" class="i i-sm"></i>Valider</button></div>`,{pane:pid});
   if(step==='pres')return openModal(`<h2>Demander au président</h2><div class="muted mb">Le président reçoit ta demande dans l'application. Il réinitialise ton mot de passe et t'envoie un mot de passe provisoire sur WhatsApp.</div>
-  <div class="field"><label>Ton numéro de téléphone ou ton e-mail</label><input class="inp" id="fg-id" placeholder="07 00 00 00 00" value="${esc(FG.id||'')}"></div><div id="fg-err" class="info red" style="display:none"></div>
+  <div class="field"><label>Ton numéro de téléphone ou ton e-mail</label><input class="inp" id="fg-id" placeholder="Téléphone ou e-mail" value="${esc(FG.id||'')}"></div><div id="fg-err" class="info red" style="display:none"></div>
   <div class="foot"><button class="btn sec" data-act="fgBack">Retour</button><button class="btn" data-act="fgPresSend"><i data-lucide="send" class="i i-sm"></i>Envoyer la demande</button></div>`,{pane:pid});
 }
 function fgErr(t){const e=document.getElementById('fg-err');if(e){e.style.display='block';e.textContent=t}}
@@ -2161,7 +2161,7 @@ function loginHtml(p){
   return `<div style="margin:4px 0 22px">${logoFull(210)}</div>
   ${p.kicked?'<div class="info red mb">Ta session a été fermée : ton compte a été bloqué ou rendu inactif. Rapproche-toi du président.</div>':''}<h2>Bienvenue</h2><div class="muted" style="font-size:13.5px;margin:4px 0 18px">Connecte-toi avec ton numéro de téléphone ou ton e-mail, et ton mot de passe.</div>
   <form data-login="${p.id}">
-  <div class="field"><label>Téléphone ou e-mail</label><input class="inp" id="li-id-${p.id}" placeholder="07 00 00 00 00 ou nom@mail.com" autocomplete="username" inputmode="email"></div>
+  <div class="field"><label>Téléphone ou e-mail</label><input class="inp" id="li-id-${p.id}" placeholder="Téléphone ou e-mail" autocomplete="username" inputmode="email"></div>
   <div class="field"><label>Mot de passe</label><div class="pw-wrap"><input class="inp" id="li-pw-${p.id}" type="password" autocomplete="current-password"><button type="button" class="pw-eye" data-act="pwEye" aria-label="Afficher le mot de passe"><i data-lucide="eye" class="i i-sm"></i></button></div></div>
   <div id="li-err-${p.id}" class="info red mb" style="display:none"></div>
   <button class="btn block" type="submit" id="li-go-${p.id}"><i data-lucide="log-in" class="i"></i>Se connecter</button></form>
@@ -2186,7 +2186,7 @@ async function doLogin(p){const ident=document.getElementById('li-id-'+p.id).val
     if(error)return fail(/invalid/i.test(error.message)?'Mot de passe incorrect.':/banned/i.test(error.message)?'Ton compte est bloqué. Rapproche-toi du président.':errMsg(error));
     await startSession(p)}
   catch(e){fail(errMsg(e))}finally{btn.disabled=false;btn.classList.remove('busy')}}
-async function startSession(p){const{data}=await sb.auth.getUser();const u=data.user;if(!u){p.session=null;renderPane(p);return}
+async function startSession(p,uSess){let u=uSess;if(!u){const{data}=await sb.auth.getUser();u=data.user}if(!u){p.session=null;renderPane(p);return}
   const mc=await loadAll();
   if(!mc||mc.etat!=='actif'){await sb.auth.signOut();p.session=null;p.kicked=mc&&(mc.etat==='bloque'||mc.etat==='inactif');renderPane(p);return}
   rpc('enregistrer_connexion').catch(()=>{});
@@ -2402,8 +2402,12 @@ API.payInAppOld=async()=>'nosync';
 
 /* ---- démarrage ---- */
 async function boot(){DB=emptyDB();setupPanes();showSplash();
-  try{const{data}=await sb.auth.getSession();if(data.session)await startSession(PANES[0])}catch(e){console.warn(e)}
-  renderAll()}
+  /* Session déjà ouverte sur ce téléphone : on garde le splash jusqu'au tableau de bord (pas d'écran de connexion entre les deux) */
+  let ok=true;try{const{data}=await sb.auth.getSession();if(data.session)await startSession(PANES[0],data.session.user)}catch(e){console.warn(e);ok=false}
+  renderAll();
+  if(!ok&&typeof hideSplash==='function'){const w=document.getElementById('spWrap');const t=w&&w.querySelector('.sp-tag');
+    if(t){t.innerHTML='Pas de connexion internet.<br><button class="btn sec sm" style="margin-top:12px" onclick="location.reload()">Réessayer</button>';const b=w.querySelector('.sp-bar');if(b)b.style.display='none';return}}
+  if(typeof hideSplash==='function')hideSplash()}
 sb.auth.onAuthStateChange((ev)=>{if(ev==='SIGNED_OUT'&&PANES[0]&&PANES[0].session){PANES[0].session=null;renderAll()}});
 
 /* =====================================================================
@@ -2453,7 +2457,7 @@ function vProfil(p){const h=vProfil0(p);const i=h.indexOf('<div class="card mb">
 /* toucher une notification ouvre la liste des notifications */
 if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.younity==='notifications'){const p=PANES[0];if(p&&p.session&&!p.session.mustChange){sync(true).then(()=>{API.openNotifs(p)})}}});
 
-window.YV='2.1.1';showSplash=function(){};(function(){const w=document.getElementById('spWrap');if(!w)return;setTimeout(()=>w.firstElementChild&&w.firstElementChild.classList.add('out'),3000);setTimeout(()=>w.remove(),3600)})();
+window.YV='2.1.2';showSplash=function(){};const SP_T0=Date.now();function hideSplash(){const w=document.getElementById('spWrap');if(!w||w.dataset.out)return;w.dataset.out=1;const d=Math.max(0,2200-(Date.now()-SP_T0));setTimeout(()=>{w.firstElementChild&&w.firstElementChild.classList.add('out');setTimeout(()=>w.remove(),600)},d)}setTimeout(hideSplash,20000);
 /* ================== APPLICATION NATIVE (Android, Capacitor) ================== */
 const NATIF=!!(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform());
 function PL(n){try{return(Capacitor.Plugins&&Capacitor.Plugins[n])||Capacitor.registerPlugin(n)}catch(e){return null}}
