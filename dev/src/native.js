@@ -115,3 +115,9 @@ if(!NATIF){const vpw=vProfil;vProfil=function(p){return vpw(p)+`<div class="card
     const t0=LASTSYNC;try{await sync(true)}catch(_){}toast(LASTSYNC!==t0?'À jour ✓':'Pas de connexion internet.')
     if(e.firstElementChild)e.firstElementChild.style.animation='';pose(0,true);busy=false},{passive:true});
   const st=document.createElement('style');st.textContent='@keyframes ptrspin{to{transform:rotate(360deg)}}';document.head.appendChild(st)})();
+
+/* ---- Bouton « Actualiser » (ordinateur, écrans sans geste tactile) ---- */
+document.addEventListener('click',async e=>{const b=e.target.closest&&e.target.closest('[data-act="actualiser"]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();
+  if(b.dataset.busy)return;b.dataset.busy=1;const i=b.querySelector('svg,i');if(i)i.style.animation='ptrspin .8s linear infinite';
+  const t0=LASTSYNC;try{await sync(true)}catch(_){}toast(LASTSYNC!==t0?'À jour ✓':'Pas de connexion internet.');
+  const b2=document.querySelector('[data-act="actualiser"]');if(b2){delete b2.dataset.busy;const i2=b2.querySelector('svg,i');if(i2)i2.style.animation=''}},true);

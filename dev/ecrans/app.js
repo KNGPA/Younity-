@@ -237,7 +237,8 @@ function chans(m,text,o={}){const sz=o.size??'sm',la=o.labels!==false,ex=o.act?`
   const sms=n?`<a class="btn ch-sms ${sz}" ${ex} data-chan="sms" href="sms:+225${n}?body=${t}" title="SMS (message normal)"><i data-lucide="message-square-text" class="i i-sm"></i>${la?'SMS':''}</a>`:'';
   const app=acctOfMember(m.id)&&!o.noApp?`<button class="btn ch-app ${sz}" ${o.act?ex:`data-act="appMsg" data-m="${m.id}"`} data-chan="app" data-t="${esc(text)}" title="Message direct dans l'appli"><i data-lucide="send" class="i i-sm"></i>${la?'Message appli':''}</button>`:'';
   return wa||sms||app?`<span class="chans">${wa}${sms}${app}</span>`:'<span class="muted">pas de contact</span>'}
-function bell(p){const n=unreadCount(sAcct(p));return `<button class="bellbtn" data-act="openNotifs" title="Notifications"><i data-lucide="bell" class="i"></i>${n?`<span class="badge">${n>9?'9+':n}</span>`:''}</button>`}
+function refBtn(p){return(p.mode==='web'||!(window.matchMedia&&matchMedia('(pointer:coarse)').matches))?`<button class="bellbtn" data-act="actualiser" title="Actualiser" style="margin-right:6px"><i data-lucide="refresh-cw" class="i"></i></button>`:''}
+function bell(p){const n=unreadCount(sAcct(p));return refBtn(p)+`<button class="bellbtn" data-act="openNotifs" title="Notifications"><i data-lucide="bell" class="i"></i>${n?`<span class="badge">${n>9?'9+':n}</span>`:''}</button>`}
 function headAvatar(p){const r=sRole(p),m=sMember(p);return `<div class="avatar ${r.id==='membre'?'':'gold'} sm">${initials(fullName(m))}</div>`}
 function renderPane(p){
   const el=document.getElementById('pane-'+p.id);if(!el)return;
@@ -952,6 +953,7 @@ document.addEventListener('click',async e=>{
     case'addMember':openModal(memberForm(null),{pane:paneId},true);break;
     case'editMember':openModal(memberForm(member(+d.id)),{pane:paneId},true);break;
     case'dep':{const v=d.v;FORMDEP=FORMDEP.includes(v)?FORMDEP.filter(x=>x!==v):[...FORMDEP,v];el.classList.toggle('on',FORMDEP.includes(v));break}
+    case'actualiser':refresh();toast('À jour ✓');break;
     case'bap':FORMBAP=d.v==='1';document.querySelectorAll('#f-bap .pill').forEach(b=>b.classList.toggle('on',b.dataset.v===d.v));break;
     case'saveMember':saveMember(d.id?+d.id:null);break;
     case'createAccess':{const m=member(+d.m);if(!m.tel&&!m.email){toast('Ajoute d\'abord un téléphone ou un e-mail.');return}

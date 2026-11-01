@@ -665,7 +665,8 @@ function chans(m,text,o={}){const sz=o.size??'sm',la=o.labels!==false,ex=o.act?`
   const sms=n?`<a class="btn ch-sms ${sz}" ${ex} data-chan="sms" href="sms:+225${n}?body=${t}" title="SMS (message normal)"><i data-lucide="message-square-text" class="i i-sm"></i>${la?'SMS':''}</a>`:'';
   const app=acctOfMember(m.id)&&!o.noApp?`<button class="btn ch-app ${sz}" ${o.act?ex:`data-act="appMsg" data-m="${m.id}"`} data-chan="app" data-t="${esc(text)}" title="Message direct dans l'appli"><i data-lucide="send" class="i i-sm"></i>${la?'Message appli':''}</button>`:'';
   return wa||sms||app?`<span class="chans">${wa}${sms}${app}</span>`:'<span class="muted">pas de contact</span>'}
-function bell(p){const n=unreadCount(sAcct(p));return `<button class="bellbtn" data-act="openNotifs" title="Notifications"><i data-lucide="bell" class="i"></i>${n?`<span class="badge">${n>9?'9+':n}</span>`:''}</button>`}
+function refBtn(p){return(p.mode==='web'||!(window.matchMedia&&matchMedia('(pointer:coarse)').matches))?`<button class="bellbtn" data-act="actualiser" title="Actualiser" style="margin-right:6px"><i data-lucide="refresh-cw" class="i"></i></button>`:''}
+function bell(p){const n=unreadCount(sAcct(p));return refBtn(p)+`<button class="bellbtn" data-act="openNotifs" title="Notifications"><i data-lucide="bell" class="i"></i>${n?`<span class="badge">${n>9?'9+':n}</span>`:''}</button>`}
 function headAvatar(p){const r=sRole(p),m=sMember(p);return `<div class="avatar ${r.id==='membre'?'':'gold'} sm">${initials(fullName(m))}</div>`}
 function renderPane(p){
   const el=document.getElementById('pane-'+p.id);if(!el)return;
@@ -1380,6 +1381,7 @@ document.addEventListener('click',async e=>{
     case'addMember':openModal(memberForm(null),{pane:paneId},true);break;
     case'editMember':openModal(memberForm(member(+d.id)),{pane:paneId},true);break;
     case'dep':{const v=d.v;FORMDEP=FORMDEP.includes(v)?FORMDEP.filter(x=>x!==v):[...FORMDEP,v];el.classList.toggle('on',FORMDEP.includes(v));break}
+    case'actualiser':refresh();toast('À jour ✓');break;
     case'bap':FORMBAP=d.v==='1';document.querySelectorAll('#f-bap .pill').forEach(b=>b.classList.toggle('on',b.dataset.v===d.v));break;
     case'saveMember':saveMember(d.id?+d.id:null);break;
     case'createAccess':{const m=member(+d.m);if(!m.tel&&!m.email){toast('Ajoute d\'abord un téléphone ou un e-mail.');return}
@@ -2463,7 +2465,7 @@ function vProfil(p){const h=vProfil0(p);const i=h.indexOf('<div class="card mb">
 /* toucher une notification ouvre la liste des notifications */
 if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.younity==='notifications'){const p=PANES[0];if(p&&p.session&&!p.session.mustChange){sync(true).then(()=>{API.openNotifs(p)})}}});
 
-window.YV='2.2.2';showSplash=function(){};const SP_T0=Date.now();function hideSplash(){const w=document.getElementById('spWrap');if(!w||w.dataset.out)return;w.dataset.out=1;const d=Math.max(0,2200-(Date.now()-SP_T0));setTimeout(()=>{w.firstElementChild&&w.firstElementChild.classList.add('out');setTimeout(()=>w.remove(),600)},d)}setTimeout(hideSplash,20000);
+window.YV='2.2.3';showSplash=function(){};const SP_T0=Date.now();function hideSplash(){const w=document.getElementById('spWrap');if(!w||w.dataset.out)return;w.dataset.out=1;const d=Math.max(0,2200-(Date.now()-SP_T0));setTimeout(()=>{w.firstElementChild&&w.firstElementChild.classList.add('out');setTimeout(()=>w.remove(),600)},d)}setTimeout(hideSplash,20000);
 /* ================== APPLICATION NATIVE (Android, Capacitor) ================== */
 const NATIF=!!(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform());
 function PL(n){try{return(Capacitor.Plugins&&Capacitor.Plugins[n])||Capacitor.registerPlugin(n)}catch(e){return null}}
@@ -2581,6 +2583,12 @@ if(!NATIF){const vpw=vProfil;vProfil=function(p){return vpw(p)+`<div class="card
     const t0=LASTSYNC;try{await sync(true)}catch(_){}toast(LASTSYNC!==t0?'À jour ✓':'Pas de connexion internet.')
     if(e.firstElementChild)e.firstElementChild.style.animation='';pose(0,true);busy=false},{passive:true});
   const st=document.createElement('style');st.textContent='@keyframes ptrspin{to{transform:rotate(360deg)}}';document.head.appendChild(st)})();
+
+/* ---- Bouton « Actualiser » (ordinateur, écrans sans geste tactile) ---- */
+document.addEventListener('click',async e=>{const b=e.target.closest&&e.target.closest('[data-act="actualiser"]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();
+  if(b.dataset.busy)return;b.dataset.busy=1;const i=b.querySelector('svg,i');if(i)i.style.animation='ptrspin .8s linear infinite';
+  const t0=LASTSYNC;try{await sync(true)}catch(_){}toast(LASTSYNC!==t0?'À jour ✓':'Pas de connexion internet.');
+  const b2=document.querySelector('[data-act="actualiser"]');if(b2){delete b2.dataset.busy;const i2=b2.querySelector('svg,i');if(i2)i2.style.animation=''}},true);
 
 boot();
 if('serviceWorker' in navigator&&location.protocol==='https:'&&!NATIF)navigator.serviceWorker.register('sw.js').catch(()=>{});
